@@ -34,9 +34,10 @@ costantemente aggiornato.
 
 ## Cosa installa
 
-Quando trascini il `.tox` in TouchDesigner, il plugin aggiunge in alto
-una **toolbar orizzontale** con tutto quello che ti serve a portata di
-clic:
+Quando trascini il `.tox` in TouchDesigner, la finestra di installazione
+si apre e ti chiede se installare il plugin. Una volta installato avrà
+aggiunta in alto una toolbar con tutto quello che serve per poter
+manipolare le proprie famiglie:
 
 <div align="center">
   <img src="Images/Toolbar.png" alt="Custom Families toolbar" />
