@@ -82,13 +82,12 @@ From left to right:
 <details>
 <summary><b>Custom_families — funzionalità</b></summary>
 
-- Toolbar orizzontale dedicata in alto, integrata nel layout TD
-- Dialog grafico di installazione con barra di progresso
-- Dialog grafico di disinstallazione con barra di progresso
-- Contenitori `Local` e `Server` per organizzare le famiglie
-- Smart-check di stato: se mancano componenti, reinstalla solo quelli
+- Toolbar orizzontale dedicata, integrata nel layout TD
+- Finestra di installazione con barra di caricamento
+- Finestra di disinstallazione con barra di caricamento
+- Framework locale per realizzare le proprie famiglie
+- Smart-check di stato: se mancano componenti, vengono reinstallati
 - Disinstallazione pulita: ogni traccia (toolbar, inject, watcher) viene rimossa quando il plugin viene disinstallato
-- Stile della toolbar configurabile (colore di sfondo, outline)
 - Backup dell'UI originale prima dell'installazione
 
 </details>
@@ -102,7 +101,6 @@ From left to right:
 - Rinomina in-place dal label del bottone
 - Duplicazione one-click con identità separata
 - Set di custom operators incorporato
-- Watcher dedicato che ripulisce gli inject UI quando la famiglia viene eliminata
 - Release notes integrate, con editor e visualizzatore
 
 </details>
