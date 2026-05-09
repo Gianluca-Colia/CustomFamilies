@@ -43,23 +43,23 @@ Da sinistra a destra:
 
 <table>
 <tr>
-<td width="80" align="center"><img src="Images/Settings_Fill.png" width="48" alt="Settings" /></td>
-<td><b>Settings</b> — apre il pannello preferenze e contiene il pulsante di disinstallazione del plugin.</td>
+<td width="100" align="center"><img src="Images/Preferences_fill.png" width="56" alt="Preferences" /></td>
+<td><b>Preferences</b> — apre il pannello preferenze e contiene il pulsante di disinstallazione del plugin.</td>
 </tr>
 <tr>
-<td width="80" align="center">—</td>
+<td width="100" align="center"><img src="Images/Local_text.png" width="80" alt="Local" /></td>
 <td><b>Local</b> — il tuo framework personale: contiene tutte le famiglie che crei o importi sulla macchina locale.</td>
 </tr>
 <tr>
-<td width="80" align="center">—</td>
+<td width="100" align="center"><img src="Images/Create_family.png" width="56" alt="Create family" /></td>
 <td><b>Create new family</b> — un click crea una nuova famiglia vuota dentro <code>Local</code>, pronta da configurare.</td>
 </tr>
 <tr>
-<td width="80" align="center">—</td>
+<td width="100" align="center"><img src="Images/Button_Custom.png" width="80" alt="Custom family" /></td>
 <td><b>Famiglie locali</b> — ogni famiglia che vive dentro <code>Local</code> ha qui il suo bottone (in figura: una <i>Custom family</i> di esempio installata con il plugin, più un'altra famiglia chiamata <code>other</code>).</td>
 </tr>
 <tr>
-<td width="80" align="center">—</td>
+<td width="100" align="center"><img src="Images/Server_text.png" width="80" alt="Server" /></td>
 <td><b>Server</b> — la sezione dove arriveranno le famiglie built-in distribuite e aggiornate dagli sviluppatori del plugin.</td>
 </tr>
 </table>
