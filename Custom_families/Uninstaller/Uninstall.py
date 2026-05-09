@@ -1,9 +1,15 @@
+import os
+import shutil
+
 UI_ROOT_PATH = '/ui'
 CUSTOM_FAMILIES_PATH = '/ui/Plugins/Custom_families'
+WATCHER_PATH = '/ui/Plugins/Watcher_Custom_families'
 UNINSTALL_LOADBAR_PATH = '/ui/Plugins/Custom_families/Dialogs/Uninstall_window/Loadbar'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
 TOP_PANEBAR_PATH = '/ui/panes/panebar/pane1'
 TOP_PANEBAR_SKIP_DISPLAY_ON = ('historydrop', 'addbookmark')
+TOUCHDESIGNER_LOCAL_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099')
+SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
 CUSTOM_FAMILIES_BUTTON_NAME = 'Custom_families_button'
 LOCAL_BAR_NAME = 'Local_bar'
 SERVER_BAR_NAME = 'Server_bar'
@@ -115,6 +121,31 @@ class Uninstall:
 		target = op(CUSTOM_FAMILIES_PATH)
 		if target is not None:
 			target.destroy()
+
+		# Belt-and-suspenders: destroy the live Watcher directly. Don't
+		# rely on its chopexec OnToOff chain firing — when the watcher's
+		# Select CHOP lost its target inside Custom_families it can error
+		# instead of dropping cleanly to 0, and the OnToOff transition
+		# never fires (the watcher then sits there orphaned). Destroying
+		# it here makes uninstall completion deterministic.
+		watcher = op(WATCHER_PATH)
+		if watcher is not None:
+			try:
+				watcher.destroy()
+			except Exception:
+				pass
+
+		# Remove the on-disk install at LOCALAPPDATA. Non-fatal — if the
+		# folder isn't there, or a file inside is locked, we silently
+		# move on so the in-memory uninstall isn't blocked by disk state.
+		self._remove_disk_folder()
+
+	def _remove_disk_folder(self):
+		try:
+			if os.path.isdir(SCRIPTS_DISK_ROOT):
+				shutil.rmtree(SCRIPTS_DISK_ROOT, ignore_errors=True)
+		except Exception:
+			pass
 
 	def _progress(self, step, label):
 		"""Update the Uninstall_window Loadbar (Actualstep + Operation).
