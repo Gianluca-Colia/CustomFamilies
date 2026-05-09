@@ -31,8 +31,14 @@ server are coming soon.
 Click the **Download** button at the top of this page to get the
 `.tox` file, then drag it into your TouchDesigner project. The
 installation window will open and ask whether you want to install
-the plugin. Once installed, a toolbar will be added at the top of
-the interface with everything you need to manage your families:
+the plugin.
+
+---
+
+## What gets added
+
+Once installed, a **horizontal toolbar** is added at the top of the
+TouchDesigner interface with everything you need to manage your families:
 
 <div align="center">
   <img src="Images/Toolbar.png" alt="Custom Families toolbar" />
