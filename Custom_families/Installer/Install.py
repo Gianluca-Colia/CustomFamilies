@@ -507,7 +507,15 @@ class Install:
 		td_root = TOUCHDESIGNER_LOCAL_PATH
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
 
-		if os.path.isdir(final_path) and not self._force_download_enabled():
+		# Skip only when the install actually exists. The prefetch step in
+		# Install_window/execute1.py creates `Custom families/` with just
+		# Font/ and Images/ inside — checking only `isdir(final_path)` made
+		# us skip the full download in that case, leaving the plugin code
+		# unextracted. We probe a canonical install file instead.
+		install_marker = os.path.join(
+			final_path, 'Custom_families', 'Installer', 'Install.py'
+		)
+		if os.path.isfile(install_marker) and not self._force_download_enabled():
 			return
 
 		try:
