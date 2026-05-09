@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.png" alt="Custom Families" width="260" />
+  <img src="docs/Logo.png" alt="Custom Families" width="260" />
 
   # Custom Families
 
