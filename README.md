@@ -15,20 +15,20 @@
 
 ---
 
-## Cos'è
+## What it is
 
-Custom Families è un plugin per TouchDesigner che ti permette di
-**creare, manipolare, salvare ed esportare** famiglie di operatori
-personalizzate, con un sistema di compatibilità che ne garantisce il
-funzionamento tra versioni diverse.
+Custom Families is a TouchDesigner plugin that lets you **create,
+manipulate, save and export** custom operator families, with a
+compatibility system across different versions.
 
-Si **installa e disinstalla automaticamente**: trascini il `.tox` nel
-progetto e il plugin registra la propria toolbar, i propri dialog e i
-propri watcher; all'uninstall rimuove ogni traccia e restituisce l'UI
-originale.
+It **installs automatically**: drag the `.tox` into your project and
+the plugin opens its own installation window. To uninstall, open the
+**Preferences** button and click **Uninstall** — the uninstallation
+window will remove every trace of the plugin and restore the UI to
+its original state.
 
-Presto arriveranno **famiglie built-in** distribuite tramite un server
-costantemente aggiornato.
+**Built-in families** distributed through a continuously updated
+server are coming soon.
 
 ---
 
