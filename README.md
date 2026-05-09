@@ -43,7 +43,7 @@ restore the UI to its original state.
 
 ---
 
-## Cosa viene aggiunto alla UI
+## What gets added to the UI
 
 Once installed, a **horizontal toolbar** is added at the top of the
 TouchDesigner interface with everything you need to manage your families:
@@ -80,30 +80,30 @@ From left to right:
 ---
 
 <details>
-<summary><b>Custom_families — features</b></summary>
+<summary><b>Custom_families — funzionalità</b></summary>
 
-- Dedicated horizontal toolbar at the top, integrated into the TD layout
-- Graphical installation dialog with progress bar
-- Graphical uninstallation dialog with progress bar
-- `Local` and `Server` containers to organise families
-- Smart state check: if components are missing, reinstalls only those
-- Clean uninstall: every trace (toolbar, inject, watcher) is removed when the plugin is uninstalled
-- Configurable toolbar style (background colour, outline)
-- Backup of the original UI before installation
+- Toolbar orizzontale dedicata in alto, integrata nel layout TD
+- Dialog grafico di installazione con barra di progresso
+- Dialog grafico di disinstallazione con barra di progresso
+- Contenitori `Local` e `Server` per organizzare le famiglie
+- Smart-check di stato: se mancano componenti, reinstalla solo quelli
+- Disinstallazione pulita: ogni traccia (toolbar, inject, watcher) viene rimossa quando il plugin viene disinstallato
+- Stile della toolbar configurabile (colore di sfondo, outline)
+- Backup dell'UI originale prima dell'installazione
 
 </details>
 
 <details>
-<summary><b>Custom_fam — family features</b></summary>
+<summary><b>Custom_fam — funzionalità della famiglia</b></summary>
 
-- Auto-install: drag-and-drop into `/project1` → the family enters `Custom_families/Local` on its own
-- Toolbar button generated automatically, with customisable colour
-- Full context menu (see next section)
-- In-place rename from the button label
-- One-click duplication with separate identity
-- Built-in set of custom operators
-- Dedicated watcher that cleans up UI injects when the family is deleted
-- Integrated release notes, with editor and viewer
+- Auto-installazione: drag-and-drop in `/project1` → la famiglia entra da sola in `Custom_families/Local`
+- Bottone in toolbar generato automaticamente, colore personalizzabile
+- Menu contestuale completo (vedi sezione successiva)
+- Rinomina in-place dal label del bottone
+- Duplicazione one-click con identità separata
+- Set di custom operators incorporato
+- Watcher dedicato che ripulisce gli inject UI quando la famiglia viene eliminata
+- Release notes integrate, con editor e visualizzatore
 
 </details>
 
