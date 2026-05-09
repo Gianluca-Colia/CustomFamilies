@@ -128,6 +128,25 @@ From left to right:
 
 ---
 
+## Coming soon
+
+Features currently in development:
+
+- **Preferences window** — dedicated panel for plugin settings
+- **UI theme selector** — dropdown inside Preferences to switch button and label aesthetics to a more TouchDesigner-native look
+- **Theme-aware context menus** — context menus that automatically follow the chosen UI theme
+- **Built-in families server** — families distributed and kept up to date by the developers
+
+---
+
+## Known issues
+
+| Issue | Status |
+|---|---|
+| **Create family** button loses its script path after the project folder is moved — the function does not fire | Fix in progress |
+
+---
+
 ## License
 
 [MIT](LICENSE) © 2026 Gianluca Colia
