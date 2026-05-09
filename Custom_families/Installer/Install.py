@@ -1,4 +1,5 @@
 import os
+import ssl
 import urllib.request
 import zipfile
 import shutil
@@ -428,10 +429,18 @@ class Install:
 
 		zip_path = os.path.join(td_root, 'CustomFamilies-main.zip')
 
-		# Download
+		# Download — urlretrieve is brittle on TD's embedded Python (no CA
+		# bundle configured by default → SSL verify fails on github.com,
+		# missing User-Agent → some redirects 403). Use urlopen with an
+		# explicit Request, write in chunks, and fall back to an unverified
+		# SSL context if the verified one fails. Surface the real exception
+		# via debug() so we don't mask the root cause behind a generic
+		# "offline" messagebox.
 		try:
-			urllib.request.urlretrieve(REPO_ZIP_URL, zip_path)
-		except Exception:
+			self._download_zip(REPO_ZIP_URL, zip_path)
+		except Exception as exc:
+			debug('[Custom_families download] failed: {}: {}'.format(
+				type(exc).__name__, exc))
 			self._handle_offline_failure()
 			raise
 
@@ -465,6 +474,39 @@ class Install:
 			os.remove(zip_path)
 		except Exception:
 			pass
+
+	def _download_zip(self, url, dest_path):
+		"""Stream a URL to disk via urlopen + chunked write.
+
+		Tries the default (verified) SSL context first. On any SSL error
+		(typical on TD's embedded Python with no CA bundle) retries with
+		an unverified context. Sends a User-Agent so GitHub doesn't 403
+		the request as "unknown client".
+		"""
+		req = urllib.request.Request(
+			url,
+			headers={'User-Agent': 'Custom_families-installer'}
+		)
+		try:
+			response = urllib.request.urlopen(req, timeout=30)
+		except (ssl.SSLError, urllib.error.URLError) as ssl_exc:
+			# Retry with unverified SSL only if the failure is SSL-related.
+			if not isinstance(ssl_exc, ssl.SSLError) and not (
+				isinstance(ssl_exc, urllib.error.URLError)
+				and isinstance(ssl_exc.reason, ssl.SSLError)
+			):
+				raise
+			debug('[Custom_families download] SSL verification failed, '
+			      'retrying with unverified context: {}'.format(ssl_exc))
+			ctx = ssl._create_unverified_context()
+			response = urllib.request.urlopen(req, timeout=30, context=ctx)
+
+		with response, open(dest_path, 'wb') as out:
+			while True:
+				chunk = response.read(64 * 1024)
+				if not chunk:
+					break
+				out.write(chunk)
 
 	def _handle_offline_failure(self):
 		"""Show offline messagebox and schedule destroy of Custom_families.
