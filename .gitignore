@@ -1,0 +1,34 @@
+# --- Local snapshot archives (huge, not for Git) ---
+Custom_fam/Custom_fam_versions/
+Custom_families/Custom_families_versions/
+.tox/Custom_fam_versions/
+.tox/Custom_families_versions/
+.tox/Backup/
+
+# --- Claude / AI tooling configs (machine-local) ---
+.claude/
+.mcp.json
+
+# --- Python compiled cache ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Trace / log files (grow over time, not source) ---
+**/ui_clone_manager_trace.txt
+**/Trace/*.txt
+**/delete_watcher_trace.txt
+
+# --- TouchDesigner side files ---
+*.toe.bak
+*.tox.bak
+*.toeBackup/
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
