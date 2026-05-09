@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Images/Install%20window%20content.png" alt="Custom Families" width="260" />
+  <video src="readme-assets/Logo%20loop.mp4" autoplay loop muted playsinline width="260"></video>
 
   # Custom Families
 
