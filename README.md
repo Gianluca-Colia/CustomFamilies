@@ -21,107 +21,107 @@ Custom Families is a TouchDesigner plugin that lets you **create,
 manipulate, save and export** custom operator families, with a
 compatibility system across different versions.
 
-It **installs automatically**: drag the `.tox` into your project and
-the plugin opens its own installation window. To uninstall, open the
-**Preferences** button and click **Uninstall** — the uninstallation
-window will remove every trace of the plugin and restore the UI to
-its original state.
-
 **Built-in families** distributed through a continuously updated
 server are coming soon.
 
 ---
 
-## Cosa installa
+## Installation
 
-Quando trascini il `.tox` in TouchDesigner, la finestra di installazione
-si apre e ti chiede se installare il plugin. Una volta installato avrà
-aggiunta in alto una toolbar con tutto quello che serve per poter
-manipolare le proprie famiglie:
+Click the **Download** button at the top of this page to get the
+`.tox` file, then drag it into your TouchDesigner project. The
+installation window will open and ask whether you want to install
+the plugin. Once installed, a toolbar will be added at the top of
+the interface with everything you need to manage your families:
 
 <div align="center">
   <img src="Images/Toolbar.png" alt="Custom Families toolbar" />
 </div>
 
-Da sinistra a destra:
+From left to right:
 
 <table>
 <tr>
 <td width="100" align="center"><img src="Images/Preferences_fill.png" width="56" alt="Preferences" /></td>
-<td><b>Preferences</b> — apre il pannello preferenze e contiene il pulsante di disinstallazione del plugin.</td>
+<td><b>Preferences</b> — opens the preferences panel and contains the plugin uninstall button.</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="Images/Local_text.png" width="80" alt="Local" /></td>
-<td><b>Local</b> — il tuo framework personale: contiene tutte le famiglie che crei o importi sulla macchina locale.</td>
+<td><b>Local</b> — your personal framework: contains all the families you create or import on the local machine.</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="Images/Create_family.png" width="56" alt="Create family" /></td>
-<td><b>Create new family</b> — un click crea una nuova famiglia vuota dentro <code>Local</code>, pronta da configurare.</td>
+<td><b>Create new family</b> — one click creates a new empty family inside <code>Local</code>, ready to configure.</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="Images/Button_Custom.png" width="80" alt="Custom family" /></td>
-<td><b>Famiglie locali</b> — ogni famiglia che vive dentro <code>Local</code> ha qui il suo bottone (in figura: una <i>Custom family</i> di esempio installata con il plugin, più un'altra famiglia chiamata <code>other</code>).</td>
+<td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other</code>).</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="Images/Server_text.png" width="80" alt="Server" /></td>
-<td><b>Server</b> — la sezione dove arriveranno le famiglie built-in distribuite e aggiornate dagli sviluppatori del plugin.</td>
+<td><b>Server</b> — the section where built-in families distributed and updated by the plugin developers will appear.</td>
 </tr>
 </table>
 
 ---
 
-<details>
-<summary><b>Custom_families — funzionalità</b></summary>
+## Uninstall
 
-- Toolbar orizzontale dedicata in alto, integrata nel layout TD
-- Dialog grafico di installazione con barra di progresso
-- Dialog grafico di disinstallazione con barra di progresso
-- Contenitori `Local` e `Server` per organizzare le famiglie
-- Smart-check di stato: se mancano componenti, reinstalla solo quelli
-- Disinstallazione pulita: ogni traccia (toolbar, inject, watcher)
-  viene rimossa quando il plugin viene disinstallato
-- Stile della toolbar configurabile (colore di sfondo, outline)
-- Backup dell'UI originale prima dell'installazione
+Open the **Preferences** button and click **Uninstall** — the
+uninstallation window will remove every trace of the plugin and
+restore the UI to its original state.
+
+---
+
+<details>
+<summary><b>Custom_families — features</b></summary>
+
+- Dedicated horizontal toolbar at the top, integrated into the TD layout
+- Graphical installation dialog with progress bar
+- Graphical uninstallation dialog with progress bar
+- `Local` and `Server` containers to organise families
+- Smart state check: if components are missing, reinstalls only those
+- Clean uninstall: every trace (toolbar, inject, watcher) is removed when the plugin is uninstalled
+- Configurable toolbar style (background colour, outline)
+- Backup of the original UI before installation
 
 </details>
 
 <details>
-<summary><b>Custom_fam — funzionalità della famiglia</b></summary>
+<summary><b>Custom_fam — family features</b></summary>
 
-- Auto-installazione: drag-and-drop in `/project1` → la famiglia entra
-  da sola in `Custom_families/Local`
-- Bottone in toolbar generato automaticamente, colore personalizzabile
-- Menu contestuale completo (vedi sezione successiva)
-- Rinomina in-place dal label del bottone
-- Duplicazione one-click con identità separata
-- Set di custom operators incorporato
-- Watcher dedicato che ripulisce gli inject UI quando la famiglia
-  viene eliminata
-- Release notes integrate, con editor e visualizzatore
+- Auto-install: drag-and-drop into `/project1` → the family enters `Custom_families/Local` on its own
+- Toolbar button generated automatically, with customisable colour
+- Full context menu (see next section)
+- In-place rename from the button label
+- One-click duplication with separate identity
+- Built-in set of custom operators
+- Dedicated watcher that cleans up UI injects when the family is deleted
+- Integrated release notes, with editor and viewer
 
 </details>
 
 <details>
-<summary><b>Menu delle funzioni della famiglia</b></summary>
+<summary><b>Family function menu</b></summary>
 
-| Voce | Effetto |
+| Item | Effect |
 |---|---|
-| **Go to family** | Naviga al COMP della famiglia in un network pane |
-| **Rename** | Rinomina la famiglia in-place |
-| **Change color** | Apre il color picker del bottone |
-| **Duplicate** | Duplica la famiglia con identità indipendente |
-| **Edit custom operators** | Apre i custom operators in un nuovo pane |
-| **Export family** | Esporta la famiglia come `.tox` |
-| **Release notes** | Mostra le release notes |
-| **Edit release notes** | Apre l'editor delle release notes |
-| **View release notes** | Visualizzatore read-only |
-| **Update** | Aggiorna la famiglia all'ultima versione |
-| **Delete** | Elimina la famiglia e ne ripulisce ogni traccia UI |
+| **Go to family** | Navigates to the family COMP in a network pane |
+| **Rename** | Renames the family in-place |
+| **Change color** | Opens the button colour picker |
+| **Duplicate** | Duplicates the family with an independent identity |
+| **Edit custom operators** | Opens the custom operators in a new pane |
+| **Export family** | Exports the family as a `.tox` |
+| **Release notes** | Shows the release notes |
+| **Edit release notes** | Opens the release notes editor |
+| **View release notes** | Read-only viewer |
+| **Update** | Updates the family to the latest version |
+| **Delete** | Deletes the family and cleans up every UI trace |
 
 </details>
 
 ---
 
-## Licenza
+## License
 
 [MIT](LICENSE) © 2026 Gianluca Colia
