@@ -415,11 +415,22 @@ class Install:
 		        ├── Font/  Images/  ui backup/
 		        ├── .tox/  docs/  README.md  LICENSE  .gitignore
 
+		Skip behavior — when the destination folder already exists AND the
+		Custom_families root's `Force Download` parameter is off, we don't
+		re-download. This protects local edits during development; users
+		who want to refresh either flip Force Download on or remove the
+		folder manually.
+
 		On failure (typically: user offline, DNS issue, GitHub unreachable)
 		shows a messagebox and destroys the in-memory Custom_families COMP
 		so the partial install state is cleared.
 		"""
 		td_root = TOUCHDESIGNER_LOCAL_PATH
+		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
+
+		if os.path.isdir(final_path) and not self._force_download_enabled():
+			return
+
 		try:
 			if not os.path.isdir(td_root):
 				os.makedirs(td_root, exist_ok=True)
@@ -507,6 +518,24 @@ class Install:
 				if not chunk:
 					break
 				out.write(chunk)
+
+	def _force_download_enabled(self):
+		"""Read the `Force Download` toggle on the Custom_families root.
+
+		Lives one level above the Installer COMP. Returns False when the
+		parent or parameter is unreachable so dev safety (skip download
+		if folder exists) is the default in any error case.
+		"""
+		try:
+			root = self.ownerComp.parent()
+			if root is None:
+				return False
+			par = getattr(root.par, 'Forcedownload', None)
+			if par is None:
+				return False
+			return bool(par.eval())
+		except Exception:
+			return False
 
 	def _handle_offline_failure(self):
 		"""Show offline messagebox and schedule destroy of Custom_families.

@@ -1,7 +1,13 @@
+import os
+import shutil
+
 UI_ROOT_PATH = '/ui'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
 TOP_PANEBAR_PATH = '/ui/panes/panebar/pane1'
 TOP_PANEBAR_SKIP_DISPLAY_ON = ('historydrop', 'addbookmark')
+SCRIPTS_DISK_ROOT = os.path.join(
+	os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099', 'Custom families'
+)
 CUSTOM_FAMILIES_BUTTON_NAME = 'Custom_families_button'
 LOCAL_BAR_NAME = 'Local_bar'
 SERVER_BAR_NAME = 'Server_bar'
@@ -38,7 +44,36 @@ def _finish_step():
 
 
 def _destroy_watcher_step():
+	# Remove the on-disk install at LOCALAPPDATA before this DAT goes
+	# away with its parent. Failures are surfaced via debug() so a
+	# leftover folder (typical cause: a file still mapped by Sync to
+	# File on a DAT we haven't released, locked by Windows) doesn't
+	# fail silently. errors don't block parent().destroy() below.
+	_remove_disk_folder()
 	parent().destroy()
+
+
+def _remove_disk_folder():
+	if not os.path.isdir(SCRIPTS_DISK_ROOT):
+		return
+
+	failures = []
+
+	def _on_error(func, path, exc_info):
+		failures.append((path, exc_info[1]))
+
+	try:
+		shutil.rmtree(SCRIPTS_DISK_ROOT, onerror=_on_error)
+	except Exception as exc:
+		debug('[Custom_families cleanup] rmtree raised: {}'.format(exc))
+		return
+
+	if failures:
+		debug('[Custom_families cleanup] rmtree: {} item(s) could not be removed'.format(len(failures)))
+		for path, err in failures[:5]:
+			debug('  - {}: {}'.format(path, err))
+	elif os.path.isdir(SCRIPTS_DISK_ROOT):
+		debug('[Custom_families cleanup] rmtree completed but folder still present: {}'.format(SCRIPTS_DISK_ROOT))
 
 
 def _close_top_pane():
