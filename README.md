@@ -1,5 +1,5 @@
 <div align="center">
-  <video src="readme-assets/Logo%20loop.mp4" autoplay loop muted playsinline width="260"></video>
+  <img src="readme-assets/Logo%20loop.gif" alt="Custom Families" width="260" />
 
   # Custom Families
 
