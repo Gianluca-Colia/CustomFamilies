@@ -3,9 +3,9 @@
 
   # Custom Families
 
-  Framework TouchDesigner per organizzare e gestire famiglie di operatori
-  personalizzate, con installazione guidata, toolbar dedicata e cleanup
-  automatico.
+  Plugin TouchDesigner per **creare, manipolare, salvare ed esportare
+  famiglie di operatori personalizzate**, con installazione e
+  disinstallazione automatiche e un sistema di compatibilità integrato.
 
   [![Download](https://img.shields.io/badge/Download-Custom__families.tox-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox)
 </div>
@@ -14,24 +14,31 @@
 
 ## Cos'è
 
-Custom Families è un sistema di plugin per TouchDesigner che fornisce
-una toolbar verticale integrata, due contenitori per le famiglie
-(`Local` e `Server`), dialog di install/uninstall e un sistema di
-famiglie auto-installanti con menu contestuale, rinomina, duplicazione
-e cleanup automatico.
+Custom Families è un plugin per TouchDesigner che ti permette di
+**creare, manipolare, salvare ed esportare** famiglie di operatori
+personalizzate, con un sistema di compatibilità che ne garantisce il
+funzionamento tra versioni diverse.
+
+Si **installa e disinstalla automaticamente**: trascini il `.tox` nel
+progetto e il plugin registra la propria toolbar, i propri dialog e i
+propri watcher; all'uninstall rimuove ogni traccia e restituisce l'UI
+originale.
+
+Presto arriveranno **famiglie built-in** distribuite tramite un server
+costantemente aggiornato.
 
 ---
 
 <details>
 <summary><b>Custom_families — funzionalità</b></summary>
 
-- Toolbar verticale dedicata in alto, integrata nel layout TD
+- Toolbar orizzontale dedicata in alto, integrata nel layout TD
 - Dialog grafico di installazione con barra di progresso
 - Dialog grafico di disinstallazione con barra di progresso
 - Contenitori `Local` e `Server` per organizzare le famiglie
 - Smart-check di stato: se mancano componenti, reinstalla solo quelli
-- Cleanup automatico: rimuove ogni traccia (toolbar, inject, watcher)
-  quando il framework viene disinstallato
+- Disinstallazione pulita: ogni traccia (toolbar, inject, watcher)
+  viene rimossa quando il plugin viene disinstallato
 - Stile della toolbar configurabile (colore di sfondo, outline)
 - Backup dell'UI originale prima dell'installazione
 
