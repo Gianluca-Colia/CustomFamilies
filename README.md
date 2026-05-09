@@ -80,47 +80,47 @@ From left to right:
 ---
 
 <details>
-<summary><b>Custom_families — funzionalità</b></summary>
+<summary><b>Custom_families — features</b></summary>
 
-- Toolbar orizzontale dedicata, integrata nel layout TD
-- Finestra di installazione con barra di caricamento
-- Finestra di disinstallazione con barra di caricamento
-- Framework locale per realizzare le proprie famiglie
-- Smart-check di stato: se mancano componenti, vengono reinstallati
-- Disinstallazione pulita: ogni traccia (toolbar, inject, watcher) viene rimossa quando il plugin viene disinstallato
-- Backup dell'UI originale prima dell'installazione
+- Dedicated horizontal toolbar, integrated into the TD layout
+- Installation window with loading bar
+- Uninstallation window with loading bar
+- Local framework to build your own families
+- Smart state check: if components are missing, they are reinstalled
+- Clean uninstall: every trace of the plugin is removed when it is uninstalled
+- Backup of the original UI before installation
 
 </details>
 
 <details>
-<summary><b>Custom_fam — funzionalità della famiglia</b></summary>
+<summary><b>Custom_fam — family features</b></summary>
 
-- Auto-installazione: drag-and-drop in `/project1` → la famiglia entra da sola in `Custom_families/Local`
-- Bottone in toolbar generato automaticamente, colore personalizzabile
-- Menu contestuale completo (vedi sezione successiva)
-- Rinomina in-place dal label del bottone
-- Duplicazione one-click con identità separata
-- Set di custom operators incorporato
-- Release notes integrate, con editor e visualizzatore
+- Auto-install: drag-and-drop into `/project1` → the family enters `Custom_families/Local` on its own
+- Toolbar button generated automatically, with customisable colour
+- Full context menu (see next section)
+- In-place rename from the button label
+- One-click duplication with separate identity
+- Built-in set of custom operators
+- Integrated release notes, with editor and viewer
 
 </details>
 
 <details>
 <summary><b>Family function menu</b></summary>
 
-| Item | Effect |
-|---|---|
-| **Go to family** | Navigates to the family COMP in a network pane |
-| **Rename** | Renames the family in-place |
-| **Change color** | Opens the button colour picker |
-| **Duplicate** | Duplicates the family with an independent identity |
-| **Edit custom operators** | Opens the custom operators in a new pane |
-| **Export family** | Exports the family as a `.tox` |
-| **Release notes** | Shows the release notes |
-| **Edit release notes** | Opens the release notes editor |
-| **View release notes** | Read-only viewer |
-| **Update** | Updates the family to the latest version |
-| **Delete** | Deletes the family and cleans up every UI trace |
+| Item | Shortcut | Effect |
+|---|---|---|
+| **Go to family** | | Navigates to the family COMP in a network pane |
+| **Rename** | `Ctrl+R` | Renames the family in-place |
+| **Change color** | | Opens the button colour picker |
+| **Duplicate** | `Ctrl+D` | Duplicates the family with an independent identity |
+| **Edit custom operators** | `Ctrl+E` | Opens the custom operators in a new pane |
+| **Export family** | | Exports the family as a `.tox` |
+| **Release notes** | | Shows the release notes |
+| **Edit release notes** | | Opens the release notes editor |
+| **View release notes** | | Read-only viewer |
+| **Update** | | Updates the family to the latest version |
+| **Delete** | `Del` | Deletes the family and cleans up every UI trace |
 
 </details>
 
