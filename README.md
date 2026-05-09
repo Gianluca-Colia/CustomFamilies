@@ -35,7 +35,15 @@ the plugin.
 
 ---
 
-## What gets added
+## Uninstall
+
+Open the **Preferences** button and click **Uninstall** — the
+uninstallation window will remove every trace of the plugin and
+restore the UI to its original state.
+
+---
+
+## Cosa viene aggiunto alla UI
 
 Once installed, a **horizontal toolbar** is added at the top of the
 TouchDesigner interface with everything you need to manage your families:
@@ -68,14 +76,6 @@ From left to right:
 <td><b>Server</b> — the section where built-in families distributed and updated by the plugin developers will appear.</td>
 </tr>
 </table>
-
----
-
-## Uninstall
-
-Open the **Preferences** button and click **Uninstall** — the
-uninstallation window will remove every trace of the plugin and
-restore the UI to its original state.
 
 ---
 
