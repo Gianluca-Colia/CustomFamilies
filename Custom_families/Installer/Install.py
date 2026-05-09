@@ -1,6 +1,13 @@
 import os
+import urllib.request
+import zipfile
+import shutil
 
 UI_ROOT_PATH = '/ui'
+
+REPO_ZIP_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/archive/refs/heads/main.zip'
+EXTRACTED_FOLDER_NAME = 'CustomFamilies-main'   # GitHub default name when extracting a branch zip
+DOWNLOAD_DEST_FOLDER_NAME = 'Custom families'    # final folder name (with space) under TD AppData
 PLUGINS_ROOT_NAME = 'Plugins'
 PLUGINS_ROOT_PATH = '/ui/Plugins'
 CUSTOM_FAMILIES_NAME = 'Custom_families'
@@ -8,8 +15,12 @@ CUSTOM_FAMILIES_PATH = '/ui/Plugins/Custom_families'
 LOADBAR_PATH = '/ui/Plugins/Custom_families/Dialogs/Install_window/Loadbar'
 INSTALL_WINDOW_PATH = '/ui/Plugins/Custom_families/Dialogs/Install_window'
 TOUCHDESIGNER_LOCAL_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099')
-UI_BACKUP_FOLDER_PATH = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families', 'ui backup')
+SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
+UI_BACKUP_FOLDER_PATH = os.path.join(SCRIPTS_DISK_ROOT, 'ui backup')
 UI_BACKUP_FILE_PATH = os.path.join(UI_BACKUP_FOLDER_PATH, 'ui.tox')
+SCRIPTS_TABLE_NAME = 'Scripts'
+PLUGINS_PREFIX = '/ui/Plugins/'
+INSTALL_DAT_NAME = 'Install'
 RUNTIME_NAME = 'Runtime'
 LOCAL_NAME = 'Local'
 # Important: in this layout the visible toolbar is produced by shrinking the
@@ -114,6 +125,24 @@ class Install:
 				debug('[Custom_families partial install] {} failed: {}'.format(label, exc))
 
 	def Run(self):
+		# Phase A: align the Install DAT itself to its canonical on-disk
+		# copy first. If repointed, defer 2 frames so Sync to File can swap
+		# the extension to fresh code, then re-enter Run.
+		install_dat = self.ownerComp.op(INSTALL_DAT_NAME)
+		install_path = install_dat.path if install_dat is not None else None
+		if install_path and self.RealignScripts(only=install_path):
+			self._defer_rerun(delay_frames=2)
+			return
+
+		# Phase B: align every other DAT listed in the Scripts table. If
+		# any par.file changed, defer 1 frame so the new file content has
+		# settled before the rest of the install starts touching ops.
+		# Missing on-disk targets are silently skipped (expected on the very
+		# first install, before the zip has been downloaded/unpacked).
+		if self.RealignScripts(skip=install_path):
+			self._defer_rerun(delay_frames=1)
+			return
+
 		parent_comp = self.ownerComp.parent()
 		if parent_comp is None:
 			return
@@ -150,6 +179,89 @@ class Install:
 			return
 
 		self._move_or_remove(parent_comp)
+
+	# ------------------------------------------------------------------
+	# Script realignment — read the `Scripts` table inside this Installer
+	# COMP (3 columns, no header: name | file_path | dat_path) and for
+	# every listed DAT repoint par.file at the canonical on-disk copy
+	# under LOCALAPPDATA/Derivative/TouchDesigner099/Custom families/...
+	# when the file actually exists there. Missing files → silent skip
+	# (expected on the very first install, before the zip is downloaded).
+	# Run() drives this in two phases (self first, then the rest) so the
+	# freshly synced extension code is the one running the install logic.
+	# ------------------------------------------------------------------
+	def RealignScripts(self, only=None, skip=None):
+		"""Walk the Scripts table and align each row's par.file to its
+		canonical disk path. Returns True if at least one par.file was
+		changed (caller should defer one or more frames before continuing).
+
+		`only`: TD op path. When set, align only that operator. Used by
+		    Run() to update the Install DAT itself first.
+		`skip`: TD op path to leave untouched in this pass. Used to avoid
+		    realigning the Install DAT after Phase A has already done so.
+		"""
+		table = self.ownerComp.op(SCRIPTS_TABLE_NAME)
+		if table is None or table.numRows == 0:
+			return False
+
+		changed = False
+		for row in range(table.numRows):
+			try:
+				dat_path = table[row, 2].val.strip()
+			except Exception:
+				continue
+			if not dat_path:
+				continue
+			if only is not None and dat_path != only:
+				continue
+			if skip is not None and dat_path == skip:
+				continue
+			if self._realign_one(dat_path):
+				changed = True
+		return changed
+
+	def _realign_one(self, dat_path):
+		target = op(dat_path)
+		if target is None or not target.pars('file'):
+			return False
+		canonical = self._canonical_disk_path(dat_path)
+		if canonical is None or not os.path.isfile(canonical):
+			return False
+		try:
+			current = target.par.file.eval()
+		except Exception:
+			return False
+		if current == canonical:
+			return False
+		try:
+			target.par.file = canonical
+		except Exception:
+			return False
+		return True
+
+	def _canonical_disk_path(self, dat_path):
+		"""Map a TD op path to its on-disk script under LOCALAPPDATA.
+
+		`/ui/Plugins/Custom_families/Installer/chopexec1`
+		    → `<SCRIPTS_DISK_ROOT>/Custom_families/Installer/chopexec1.py`
+
+		Returns None for paths outside the /ui/Plugins/ branch — those rows
+		are external to our managed layout and we leave them alone.
+		"""
+		if not dat_path.startswith(PLUGINS_PREFIX):
+			return None
+		rel = dat_path[len(PLUGINS_PREFIX):]
+		if not rel:
+			return None
+		return os.path.join(SCRIPTS_DISK_ROOT, rel + '.py').replace('\\', '/')
+
+	def _defer_rerun(self, delay_frames=1):
+		run(
+			"target = op(args[0]); "
+			"target.ext.Install.Run() if target is not None else None",
+			self.ownerComp.path,
+			delayFrames=delay_frames
+		)
 
 	def _is_inside_plugins_container(self, comp):
 		parent_comp = comp.parent()
@@ -220,6 +332,7 @@ class Install:
 		regeneration between frames.
 		"""
 		return [
+			('Downloading from GitHub',    lambda c: self._download_repo_to_appdata()),
 			('Disable runtime',            lambda c: self._disable_runtime_cook(c)),
 			('Normalize panes',            lambda c: self._normalize_to_pane1()),
 			('Initialize toolbar',         lambda c: self._initialize_toolbar()),
@@ -288,6 +401,87 @@ class Install:
 			index,
 			target_path,
 			delayFrames=1
+		)
+
+	def _download_repo_to_appdata(self):
+		"""Fetch the GitHub repo zip, extract into the TD AppData folder,
+		rename the extracted folder to 'Custom families', remove the zip.
+
+		Final layout:
+		    {LOCALAPPDATA}/Derivative/TouchDesigner099/Custom families/
+		        ├── Custom_families/
+		        ├── Custom_fam/
+		        ├── Font/  Images/  ui backup/
+		        ├── .tox/  docs/  README.md  LICENSE  .gitignore
+
+		On failure (typically: user offline, DNS issue, GitHub unreachable)
+		shows a messagebox and destroys the in-memory Custom_families COMP
+		so the partial install state is cleared.
+		"""
+		td_root = TOUCHDESIGNER_LOCAL_PATH
+		try:
+			if not os.path.isdir(td_root):
+				os.makedirs(td_root, exist_ok=True)
+		except Exception:
+			self._handle_offline_failure()
+			raise
+
+		zip_path = os.path.join(td_root, 'CustomFamilies-main.zip')
+
+		# Download
+		try:
+			urllib.request.urlretrieve(REPO_ZIP_URL, zip_path)
+		except Exception:
+			self._handle_offline_failure()
+			raise
+
+		# Extract
+		try:
+			with zipfile.ZipFile(zip_path, 'r') as archive:
+				archive.extractall(td_root)
+		except Exception:
+			try:
+				os.remove(zip_path)
+			except Exception:
+				pass
+			self._handle_offline_failure()
+			raise
+
+		# Rename CustomFamilies-main → Custom families. If the destination
+		# already exists, drop it first (the just-downloaded copy is the
+		# authoritative one).
+		extracted_path = os.path.join(td_root, EXTRACTED_FOLDER_NAME)
+		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
+		try:
+			if os.path.isdir(final_path):
+				shutil.rmtree(final_path)
+			os.rename(extracted_path, final_path)
+		except Exception:
+			self._handle_offline_failure()
+			raise
+
+		# Cleanup zip
+		try:
+			os.remove(zip_path)
+		except Exception:
+			pass
+
+	def _handle_offline_failure(self):
+		"""Show offline messagebox and schedule destroy of Custom_families.
+
+		Both deferred via run() so the current install-step callstack
+		unwinds cleanly before the COMP disappears.
+		"""
+		run(
+			"ui.messageBox('Custom families', "
+			"'Connessione assente: impossibile scaricare il framework da GitHub. "
+			"Il componente verra rimosso.')",
+			delayFrames=1
+		)
+		run(
+			"target = op(args[0]); target.destroy() if target is not None else None",
+			CUSTOM_FAMILIES_PATH,
+			delayFrames=2
 		)
 
 	def _initialize_toolbar(self):
