@@ -29,6 +29,43 @@ costantemente aggiornato.
 
 ---
 
+## Cosa installa
+
+Quando trascini il `.tox` in TouchDesigner, il plugin aggiunge in alto
+una **toolbar orizzontale** con tutto quello che ti serve a portata di
+clic:
+
+<div align="center">
+  <img src="Images/Toolbar.png" alt="Custom Families toolbar" />
+</div>
+
+Da sinistra a destra:
+
+<table>
+<tr>
+<td width="80" align="center"><img src="Images/Settings_Fill.png" width="48" alt="Settings" /></td>
+<td><b>Settings</b> — apre il pannello preferenze e contiene il pulsante di disinstallazione del plugin.</td>
+</tr>
+<tr>
+<td width="80" align="center">—</td>
+<td><b>Local</b> — il tuo framework personale: contiene tutte le famiglie che crei o importi sulla macchina locale.</td>
+</tr>
+<tr>
+<td width="80" align="center">—</td>
+<td><b>Create new family</b> — un click crea una nuova famiglia vuota dentro <code>Local</code>, pronta da configurare.</td>
+</tr>
+<tr>
+<td width="80" align="center">—</td>
+<td><b>Famiglie locali</b> — ogni famiglia che vive dentro <code>Local</code> ha qui il suo bottone (in figura: una <i>Custom family</i> di esempio installata con il plugin, più un'altra famiglia chiamata <code>other</code>).</td>
+</tr>
+<tr>
+<td width="80" align="center">—</td>
+<td><b>Server</b> — la sezione dove arriveranno le famiglie built-in distribuite e aggiornate dagli sviluppatori del plugin.</td>
+</tr>
+</table>
+
+---
+
 <details>
 <summary><b>Custom_families — funzionalità</b></summary>
 
