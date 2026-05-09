@@ -139,6 +139,7 @@ Features currently in development:
 - **UI theme selector** — dropdown inside Preferences to switch button and label aesthetics to a more TouchDesigner-native look
 - **Theme-aware context menus** — context menus that automatically follow the chosen UI theme
 - **Built-in families server** — families distributed and kept up to date by the developers
+- **More consistent permanent installation**
 
 ---
 
@@ -146,7 +147,16 @@ Features currently in development:
 
 | Issue | Status |
 |---|---|
-| **Create family** button loses its script path after the project folder is moved — the function does not fire | Fix in progress |
+| Visual realignment of the two context menus (**Preferences** button and **Family** button) | Fix in progress |
+| Visual realignment of the **Edit release notes** / **View release notes** windows | Fix in progress |
+
+---
+
+## Resolved issues
+
+| Issue | Resolution |
+|---|---|
+| **Create family** button lost its script path after the project folder was moved — the function did not fire | Fixed: scripts are now realigned to the canonical install path on every install |
 
 ---
 
