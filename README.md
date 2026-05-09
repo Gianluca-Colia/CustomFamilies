@@ -89,6 +89,8 @@ From left to right:
 - Smart state check: if components are missing, they are reinstalled
 - Clean uninstall: every trace of the plugin is removed when it is uninstalled
 - Backup of the original UI before installation
+- Overcomes TouchDesigner's built-in 12-family limit in menu_op
+- Page numbering system to navigate families beyond the first page
 
 </details>
 
