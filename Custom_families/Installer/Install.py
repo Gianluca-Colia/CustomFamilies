@@ -294,7 +294,7 @@ class Install:
 		changed = False
 		for root in roots:
 			try:
-				dats = root.findChildren(type=DAT, depth=None)
+				dats = root.findChildren(type=DAT, depth=99)
 			except Exception:
 				continue
 			for dat in dats:
