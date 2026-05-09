@@ -160,6 +160,13 @@ Features currently in development:
 
 ---
 
+## Recent fixes
+
+- **Final script realignment after download** — `RealignScripts` now runs as the last install step, after the repo zip has been extracted to LOCALAPPDATA, so every `par.file` ends up on the freshly downloaded copy instead of being skipped because the canonical file did not exist yet.
+- **Robust install detection** — the download skip-check now probes for `Custom_families/Installer/Install.py` instead of just the destination folder, so the prefetch step (which creates the folder for fonts/images) no longer prevents the full install from extracting.
+
+---
+
 ## License
 
 [MIT](LICENSE) © 2026 Gianluca Colia
