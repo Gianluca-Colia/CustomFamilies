@@ -1,15 +1,9 @@
-import os
-import shutil
-
 UI_ROOT_PATH = '/ui'
 CUSTOM_FAMILIES_PATH = '/ui/Plugins/Custom_families'
-WATCHER_PATH = '/ui/Plugins/Watcher_Custom_families'
 UNINSTALL_LOADBAR_PATH = '/ui/Plugins/Custom_families/Dialogs/Uninstall_window/Loadbar'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
 TOP_PANEBAR_PATH = '/ui/panes/panebar/pane1'
 TOP_PANEBAR_SKIP_DISPLAY_ON = ('historydrop', 'addbookmark')
-TOUCHDESIGNER_LOCAL_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099')
-SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
 CUSTOM_FAMILIES_BUTTON_NAME = 'Custom_families_button'
 LOCAL_BAR_NAME = 'Local_bar'
 SERVER_BAR_NAME = 'Server_bar'
@@ -114,67 +108,13 @@ class Uninstall:
 		self._schedule('_destroy_custom_families_step', delay=1)
 
 	def _destroy_custom_families_step(self):
-		# Set progress to 21 BEFORE destroying anything — once the COMP is
-		# gone the Loadbar (inside Uninstall_window inside Custom_families)
-		# goes with it, so any later progress call is a no-op.
+		# Set progress to 21 BEFORE destroying — once the COMP is gone, the
+		# Loadbar (inside Uninstall_window inside Custom_families) goes
+		# with it, so any later progress call is a no-op.
 		self._progress(21, 'Uninstall complete')
-
-		# Order matters: do every cleanup that touches state OUTSIDE
-		# Custom_families (the watcher COMP, the on-disk LOCALAPPDATA copy)
-		# BEFORE destroying the Custom_families root. Once we destroy the
-		# root, the Uninstall DAT we're executing from goes with it and TD
-		# can interrupt the current frame, leaving the watcher orphaned and
-		# the disk folder still on disk.
-
-		# 1. Watcher COMP — lives at /ui/Plugins/Watcher_Custom_families,
-		#    a sibling of Custom_families, so it does NOT die automatically
-		#    when the root is destroyed. Don't rely on its chopexec OnToOff
-		#    chain either — if its Select CHOP lost its target inside
-		#    Custom_families it can error instead of dropping cleanly to 0,
-		#    and the transition never fires.
-		watcher = op(WATCHER_PATH)
-		if watcher is not None:
-			try:
-				watcher.destroy()
-			except Exception as exc:
-				debug('[Custom_families uninstall] watcher destroy failed: {}'.format(exc))
-
-		# 2. On-disk install at LOCALAPPDATA. Non-fatal — if a file inside
-		#    is locked we log and move on so the in-memory uninstall isn't
-		#    blocked by disk state.
-		self._remove_disk_folder()
-
-		# 3. Custom_families root last (this DAT goes with it).
 		target = op(CUSTOM_FAMILIES_PATH)
 		if target is not None:
 			target.destroy()
-
-	def _remove_disk_folder(self):
-		"""rmtree the LOCALAPPDATA install. Logs every per-file failure so
-		a leftover folder doesn't fail silently — typical cause is a file
-		still mapped by Sync to File on a DAT that hasn't been destroyed
-		yet, which Windows refuses to delete with PermissionError.
-		"""
-		if not os.path.isdir(SCRIPTS_DISK_ROOT):
-			return
-
-		failures = []
-
-		def _on_error(func, path, exc_info):
-			failures.append((path, exc_info[1]))
-
-		try:
-			shutil.rmtree(SCRIPTS_DISK_ROOT, onerror=_on_error)
-		except Exception as exc:
-			debug('[Custom_families uninstall] rmtree raised: {}'.format(exc))
-			return
-
-		if failures:
-			debug('[Custom_families uninstall] rmtree: {} item(s) could not be removed'.format(len(failures)))
-			for path, err in failures[:5]:
-				debug('  - {}: {}'.format(path, err))
-		elif os.path.isdir(SCRIPTS_DISK_ROOT):
-			debug('[Custom_families uninstall] rmtree completed but folder still present: {}'.format(SCRIPTS_DISK_ROOT))
 
 	def _progress(self, step, label):
 		"""Update the Uninstall_window Loadbar (Actualstep + Operation).

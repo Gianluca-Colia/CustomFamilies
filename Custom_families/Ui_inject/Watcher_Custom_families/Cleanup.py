@@ -1,12 +1,7 @@
-import os
-import shutil
-
 UI_ROOT_PATH = '/ui'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
 TOP_PANEBAR_PATH = '/ui/panes/panebar/pane1'
 TOP_PANEBAR_SKIP_DISPLAY_ON = ('historydrop', 'addbookmark')
-TOUCHDESIGNER_LOCAL_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099')
-SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
 CUSTOM_FAMILIES_BUTTON_NAME = 'Custom_families_button'
 LOCAL_BAR_NAME = 'Local_bar'
 SERVER_BAR_NAME = 'Server_bar'
@@ -43,16 +38,6 @@ def _finish_step():
 
 
 def _destroy_watcher_step():
-	# Manual-delete fallback path: clear the on-disk install before this
-	# DAT goes away with its parent. Idempotent — Uninstall.Run also
-	# rmtrees this folder, so on the official uninstall path this is a
-	# no-op. Errors are swallowed so a locked file can't block the COMP
-	# destruction below.
-	try:
-		if os.path.isdir(SCRIPTS_DISK_ROOT):
-			shutil.rmtree(SCRIPTS_DISK_ROOT, ignore_errors=True)
-	except Exception:
-		pass
 	parent().destroy()
 
 
