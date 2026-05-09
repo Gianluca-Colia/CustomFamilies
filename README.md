@@ -79,6 +79,8 @@ From left to right:
 
 ---
 
+## Features
+
 <details>
 <summary><b>Custom_families — features</b></summary>
 
