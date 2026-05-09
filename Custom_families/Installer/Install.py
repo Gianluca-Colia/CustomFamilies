@@ -59,6 +59,7 @@ PAGES_OUT2_PATH = 'out2'
 TOP_PANE_STORE_KEY = 'cf_top_pane_id'
 BOTTOM_PANE_STORE_KEY = 'cf_bottom_pane_id'
 INSTALL_COMPLETE_KEY = 'cf_install_complete'
+SCRIPT_ROOT_MARKERS = ('Custom_families/', 'Custom_fam/')
 
 
 class Install:
@@ -124,6 +125,7 @@ class Install:
 					self._wire_page_number()
 			except Exception as exc:
 				debug('[Custom_families partial install] {} failed: {}'.format(label, exc))
+		self._realign_all_scripts()
 
 	def Run(self):
 		# Phase A: align the Install DAT itself to its canonical on-disk
@@ -240,6 +242,82 @@ class Install:
 			return False
 		return True
 
+	def _canonical_from_file_val(self, file_val):
+		"""Derive the canonical LOCALAPPDATA path from an existing par.file value.
+
+		Uses rfind to locate the LAST occurrence of a known root marker
+		('Custom_families/' or 'Custom_fam/'), which correctly strips any
+		double-nesting (e.g. '.../Custom_families/Custom_families/Ui_inject/...'
+		→ 'Custom_families/Ui_inject/...') that appears when par.file was saved
+		with an absolute path from the old project location.
+		Returns None if no marker is found.
+		"""
+		norm = file_val.replace('\\', '/')
+		best_idx = -1
+		for marker in SCRIPT_ROOT_MARKERS:
+			idx = norm.rfind(marker)
+			if idx > best_idx:
+				best_idx = idx
+		if best_idx == -1:
+			return None
+		rel = norm[best_idx:]
+		return os.path.join(SCRIPTS_DISK_ROOT, rel).replace('\\', '/')
+
+	def _realign_all_scripts(self):
+		"""Walk every inject destination (Custom_families root, toolbar injects,
+		watcher, menu_op injects) and repoint any par.file that does not already
+		point to LOCALAPPDATA to its canonical path under SCRIPTS_DISK_ROOT.
+
+		Works from the current par.file VALUE (not the TD op path), so it fixes
+		both DATs inside /ui/Plugins/ and injected copies in the toolbar or
+		menu_op that _canonical_disk_path cannot reach.
+		"""
+		roots = []
+		cf = op(CUSTOM_FAMILIES_PATH)
+		if cf is not None:
+			roots.append(cf)
+		watcher = op(PLUGINS_ROOT_PATH + '/' + WATCHER_NAME)
+		if watcher is not None:
+			roots.append(watcher)
+		if self.top_panebar is not None:
+			for name in (LOCAL_BAR_NAME, SERVER_BAR_NAME, CUSTOM_FAMILIES_BUTTON_NAME):
+				child = self.top_panebar.op(name)
+				if child is not None:
+					roots.append(child)
+		if self.menu_op is not None:
+			for name in (PAGES_NAME, PAGE_NUMBER_NAME):
+				child = self.menu_op.op(name)
+				if child is not None:
+					roots.append(child)
+
+		scripts_root_norm = SCRIPTS_DISK_ROOT.replace('\\', '/')
+		changed = False
+		for root in roots:
+			try:
+				dats = root.findChildren(type=DAT, depth=None)
+			except Exception:
+				continue
+			for dat in dats:
+				if not dat.pars('file'):
+					continue
+				try:
+					current = dat.par.file.eval()
+				except Exception:
+					continue
+				if not current:
+					continue
+				if current.replace('\\', '/').startswith(scripts_root_norm):
+					continue
+				canonical = self._canonical_from_file_val(current)
+				if canonical is None or not os.path.isfile(canonical):
+					continue
+				try:
+					dat.par.file = canonical
+					changed = True
+				except Exception:
+					pass
+		return changed
+
 	def _canonical_disk_path(self, dat_path):
 		"""Map a TD op path to its on-disk script under LOCALAPPDATA.
 
@@ -353,6 +431,7 @@ class Install:
 			('Wire Page_number',           lambda c: self._wire_page_number()),
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
 			('Enable Local',               lambda c: self._enable_local_cook(c)),
+			('Realign scripts',            lambda c: self._realign_all_scripts()),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
