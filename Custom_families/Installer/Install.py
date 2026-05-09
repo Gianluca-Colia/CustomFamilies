@@ -124,6 +124,7 @@ class Install:
 					self._wire_page_number()
 			except Exception as exc:
 				debug('[Custom_families partial install] {} failed: {}'.format(label, exc))
+		self.RealignScripts()
 
 	def Run(self):
 		# Phase A: align the Install DAT itself to its canonical on-disk
@@ -353,6 +354,7 @@ class Install:
 			('Wire Page_number',           lambda c: self._wire_page_number()),
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
 			('Enable Local',               lambda c: self._enable_local_cook(c)),
+			('Realign scripts',            lambda c: self.RealignScripts()),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
