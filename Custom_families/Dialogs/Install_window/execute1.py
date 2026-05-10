@@ -98,10 +98,12 @@ def _schedule_dialog_open(install_window):
 		install_window.cook(force=True)
 	except Exception:
 		pass
-	# 15 frames is the safe value across Windows and macOS — a tighter
-	# delay caused the pulse to arrive before the relocated COMP had
-	# settled and the dialog stayed closed on Mac.
-	run("args[0].par.Winopen.pulse()", install_window, delayFrames=15)
+	# Short delay so the freshly copied COMP can register its panel
+	# parameters before the pulse. The Mac regression we hit earlier was
+	# caused by the missing onCreate re-fire on the copy, not by timing —
+	# now that we schedule the pulse directly on the copied Install_window,
+	# 2 frames are enough.
+	run("args[0].par.Winopen.pulse()", install_window, delayFrames=2)
 
 
 def onExit():
