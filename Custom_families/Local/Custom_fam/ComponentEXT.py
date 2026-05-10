@@ -73,11 +73,22 @@ class ComponentEXT:
 		except Exception:
 			reinstall_in_progress = False
 
+		# Skip the deferred refresh when the family is not actually installed.
+		# This is the dropped-template state (e.g. the embedded Custom_fam that
+		# ships inside the Custom_families .tox before the user clicks Install):
+		# there is no installed UI to refresh and an eager UpdateAll just adds
+		# main-thread work that delays the install dialog from opening.
+		try:
+			install_par = getattr(self.ownerComp.par, 'Install', None)
+			is_installed = bool(install_par.eval()) if install_par is not None else False
+		except Exception:
+			is_installed = False
+
 		# During rename/reinstall a fresh extension instance can be created on the
 		# just-renamed COMP. Avoid scheduling an eager UpdateAll from __init__ in
 		# that window, otherwise the new family's UI can appear before the old
 		# family's cleanup has fully finished.
-		if not reinstall_in_progress:
+		if is_installed and not reinstall_in_progress:
 			self.ScheduleUpdateAll(showMessage=False)
 
 	def ScheduleUpdateAll(self, showMessage=False):

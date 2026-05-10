@@ -137,7 +137,16 @@ class GenericInstallerEXT:
 			self.ownerComp.path,
 			self._enableRuntimeHooks
 		))
-		if self._enableRuntimeHooks:
+		# Skip the post-init setup for dropped-template families (par.Install=0).
+		# A template family inside the embedded .tox does not need its runtime
+		# hooks until the user actually installs it; running them on every drop
+		# delays the install dialog from opening.
+		try:
+			install_par = getattr(self.ownerComp.par, 'Install', None)
+			is_installed = bool(install_par.eval()) if install_par is not None else False
+		except Exception:
+			is_installed = False
+		if self._enableRuntimeHooks and is_installed:
 			self.SchedulePostInitSetup()
 
 	def _get_family_name(self):
