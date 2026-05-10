@@ -25,10 +25,29 @@ def _autoinstall_enabled(comp):
 		return True
 
 
+def _is_inside_installed_plugin(comp):
+	"""True only when the family is hosted under /ui/Plugins/Custom_families/.
+
+	An embedded template family inside a freshly-dropped Custom_families.tox
+	lives at /project1/... — auto-installing in that state runs the full
+	HandleInstallValue pipeline before the host plugin is even ready, which
+	stalls the install dialog for several seconds.
+	"""
+	try:
+		path = str(comp.path)
+	except Exception:
+		return False
+	return path.startswith('/ui/Plugins/Custom_families/')
+
+
 def _call_install():
 	comp = _get_family_comp()
 	if comp is None:
 		debug("Auto_install_execute: family comp not found")
+		return False
+
+	if not _is_inside_installed_plugin(comp):
+		# Dropped-template state — the host plugin isn't ready yet.
 		return False
 
 	if not _autoinstall_enabled(comp):
