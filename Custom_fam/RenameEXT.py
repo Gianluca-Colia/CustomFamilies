@@ -473,43 +473,4 @@ class GenericRenameEXT:
 			previous_name=previous_name,
 		)
 
-	def PromptRenameFamily(self):
-		dialog = getattr(op.TDResources, 'PopDialog', None)
-		if dialog is None:
-			return False
-
-		current_name = self._get_family_name() or self._sanitize_family_name(self.ownerComp.name)
-
-		try:
-			dialog.OpenDefault(
-				title='Rename Family',
-				text='Enter the new family name.',
-				buttons=['Rename', 'Cancel'],
-				callback=self._OnRenameFamilyDialog,
-				details={'ownerPath': self.ownerComp.path},
-				textEntry=True,
-				textEntryDefault=current_name,
-				escButton=2,
-				enterButton=1,
-				escOnClickAway=True,
-			)
-			return True
-		except Exception as e:
-			self._trace("PromptRenameFamily failed: {}".format(e))
-			return False
-
-	def _OnRenameFamilyDialog(self, info):
-		if str(info.get('button', '')) != 'Rename':
-			return False
-
-		new_name = info.get('enteredText', '')
-		result = self.RenameFamily(new_name, show_message=False)
-		if not result:
-			try:
-				ui.messageBox('Plugin Manager', 'Rename family failed')
-			except Exception:
-				pass
-		return result
-
-
 RenameEXT = GenericRenameEXT
