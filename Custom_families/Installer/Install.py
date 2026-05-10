@@ -226,20 +226,47 @@ class Install:
 		return changed
 
 	def _realign_one(self, dat_path):
+		"""Install a self-healing expression on the DAT's par.file.
+
+		Pattern:
+		    app.preferencesFolder + '/Custom families/<rel>.py'
+		    if __import__('os').path.isfile(<same path>) else ''
+
+		The expression resolves to the canonical on-disk path when the file
+		exists at LOCALAPPDATA, otherwise to an empty string — so par.file is
+		never left pointing at a stale absolute path that no longer exists.
+		"""
 		target = op(dat_path)
 		if target is None or not target.pars('file'):
 			return False
-		canonical = self._canonical_disk_path(dat_path)
-		if canonical is None or not os.path.isfile(canonical):
+		if not dat_path.startswith(PLUGINS_PREFIX):
 			return False
+		rel = dat_path[len(PLUGINS_PREFIX):]
+		if not rel:
+			return False
+
+		rel_disk = '/Custom families/' + rel + '.py'
+		path_expr = 'app.preferencesFolder + ' + repr(rel_disk)
+		new_expr = (
+			path_expr + " if __import__('os').path.isfile(" + path_expr + ") else ''"
+		)
+
+		par = target.par.file
 		try:
-			current = target.par.file.eval()
+			current_expr = par.expr or ''
 		except Exception:
-			return False
-		if current == canonical:
-			return False
+			current_expr = ''
 		try:
-			target.par.file = canonical
+			current_mode = par.mode
+		except Exception:
+			current_mode = None
+
+		if current_expr == new_expr and current_mode == ParMode.EXPRESSION:
+			return False
+
+		try:
+			par.expr = new_expr
+			par.mode = ParMode.EXPRESSION
 		except Exception:
 			return False
 		return True
