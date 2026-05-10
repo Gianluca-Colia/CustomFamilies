@@ -1,8 +1,6 @@
 # --- Local snapshot archives (huge, not for Git) ---
-Custom_fam/Custom_fam_versions/
-Custom_families/Custom_families_versions/
-.tox/Custom_fam_versions/
-.tox/Custom_families_versions/
+**/Custom_fam_versions/
+**/Custom_families_versions/
 .tox/Backup/
 
 # --- Claude / AI tooling configs (machine-local) ---
