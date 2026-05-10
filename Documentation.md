@@ -57,10 +57,11 @@ Tutte le sue funzioni principali stanno sull'estensione **`ComponentEXT`**.
 
 | Funzione | Cosa fa |
 |---|---|
-| **`PromptRenameFamily()`** | Mostra un dialog all'utente per scrivere il nuovo nome. |
+| **`RenameEXT.RenameFamily(new_name)`** | Rinomina la famiglia. Pulisce il vecchio nome e reinstalla con il nuovo in modo atomico. |
 
-> Per rinominare via codice senza dialog, usa
-> `op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')`.
+```python
+op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')
+```
 
 ### Export
 
