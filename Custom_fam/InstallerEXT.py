@@ -587,13 +587,13 @@ class GenericInstallerEXT:
 
 	def _get_install_message(self, install_kind=None):
 		if isinstance(install_kind, bool):
-			return "Update sucessful!" if install_kind else "Plugin installed!"
+			return "Update successful!" if install_kind else "Plugin installed!"
 
 		install_kind = str(install_kind or '').strip().lower()
 		if install_kind == 'copy':
 			return "Copy completed successfully!"
 		if install_kind == 'update':
-			return "Update sucessful!"
+			return "Update successful!"
 		return "Plugin installed!"
 
 	def _show_route_message(self, route_label, delay_frames=1):
@@ -4712,8 +4712,19 @@ class GenericInstallerEXT:
 
 		self._handlingInstallValue = True
 		self._currentInstallSourceLabel = source_label
+		# During a rename/reinstall the owner's par.Install gets pulsed back to 1
+		# by RenameEXT, which fires this watcher path. Suppress the success
+		# messagebox in that case — the install is bookkeeping, not a user action.
 		try:
-			result = self.Install(show_message=(not is_auto_source), is_update=None, reset_trace=True)
+			rename_in_progress = bool(self.ownerComp.fetch('cf_reinstall_in_progress', 0))
+		except Exception:
+			rename_in_progress = False
+		try:
+			result = self.Install(
+				show_message=(not is_auto_source) and not rename_in_progress,
+				is_update=None,
+				reset_trace=True,
+			)
 		finally:
 			self._handlingInstallValue = False
 			self._currentInstallSourceLabel = ''
