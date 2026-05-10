@@ -71,15 +71,7 @@ def onCreate():
 		target.cook(force=True)
 	except Exception:
 		pass
-	try:
-		for child in target.findChildren(depth=None):
-			try:
-				child.cook(force=True)
-			except Exception:
-				pass
-	except Exception:
-		pass
-	run("args[0].par.Winopen.pulse()", target, delayFrames=15)
+	run("args[0].par.Winopen.pulse()", target, delayFrames=2)
 	return
 
 
