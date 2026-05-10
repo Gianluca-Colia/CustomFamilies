@@ -1,116 +1,105 @@
 # Custom Families — Documentazione
 
-Guida rapida alle funzioni che puoi chiamare via Python (textport,
-callback, script esterni) senza passare dalla UI.
+Funzioni che puoi chiamare via Python (textport, callback, script) per
+pilotare il plugin senza usare la UI.
 
-In TouchDesigner ogni funzione vive su un'estensione di un COMP. La
-chiami così:
+In TouchDesigner ogni funzione vive su un'estensione di un COMP. Si
+richiama così:
 
 ```python
-op('/ui/Plugins/Custom_families/Installer').ext.Install.Run()
-op('/ui/Plugins/Custom_families/Local/MyFamily').ext.ComponentEXT.Install()
+op('Custom_families').ext.Install.Run()
+op('MyFamily').ext.ComponentEXT.Install()
 ```
 
-> Convenzione TD: solo i metodi con iniziale maiuscola sono richiamabili
-> dall'esterno. Quelli con underscore iniziale sono interni.
+> Nei nostri esempi usiamo gli **op-shortcut** (`Custom_families`,
+> nome della famiglia, ecc.). Funzionano da qualsiasi punto del progetto.
 
 ---
 
 ## 1. Contenitore — `Custom_families`
 
-Il plugin nel suo complesso. Il COMP risiede in
-`/ui/Plugins/Custom_families` e ospita tutte le famiglie.
+Il plugin nel suo complesso (toolbar, dialog, scaffali `Local`/`Server`).
 
 ### Install / Uninstall del plugin
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`Run()`** | `Installer/Install` | Installa il plugin. Scarica il framework da GitHub in LOCALAPPDATA, riallinea gli script, monta toolbar, watcher, dialog e patch del menu_op. Idempotente: se è già installato non fa nulla; se manca solo qualcosa lo reinstalla. |
-| **`Run()`** | `Uninstaller/Uninstall` | Disinstalla il plugin. Ripristina la UI di TD allo stato originale e rimuove ogni traccia (toolbar, dialog, watcher, contenitori `Local`/`Server`, COMP `Custom_families`). |
+| Funzione | Cosa fa |
+|---|---|
+| **`Install.Run()`** | Installa il plugin. Scarica il framework, monta toolbar e dialog, riallinea gli script. |
+| **`Uninstall.Run()`** | Disinstalla il plugin. Ripristina la UI di TD allo stato originale. |
 
 ```python
-# Install
-op('/ui/Plugins/Custom_families/Installer').ext.Install.Run()
-
-# Uninstall
-op('/ui/Plugins/Custom_families/Uninstaller').ext.Uninstall.Run()
+op('Custom_families').ext.Install.Run()
+op('Custom_families').ext.Uninstall.Run()
 ```
 
 ### Manutenzione
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`RealignScripts()`** | `Installer/Install` | Ripunta `par.file` di ogni DAT della tabella `Scripts` alla copia canonica in `LOCALAPPDATA/.../Custom families/...`. Utile dopo aver spostato la cartella di progetto. |
+| Funzione | Cosa fa |
+|---|---|
+| **`Install.RealignScripts()`** | Ripunta i `par.file` di ogni DAT alla copia canonica in `LOCALAPPDATA/.../Custom families/...`. Utile dopo aver spostato la cartella di progetto. |
 
 ---
 
 ## 2. Singola famiglia — `Custom_fam`
 
-Ogni famiglia che crei o importi è un COMP dentro
-`Custom_families/Local/`. Ha quattro estensioni: `ComponentEXT`,
-`InstallerEXT`, `UninstallerEXT`, `RenameEXT`.
+Una famiglia è un COMP creato/importato dentro `Custom_families/Local`.
+Tutte le sue funzioni principali stanno sull'estensione **`ComponentEXT`**.
 
-**`ComponentEXT` è la facciata principale** — chiama da qui per la
-maggior parte delle operazioni.
+### Install / Uninstall
 
-### Install / Uninstall di una famiglia
+| Funzione | Cosa fa |
+|---|---|
+| **`Install()`** | Installa la famiglia (bottone in toolbar, voce nel menu_op, custom operators). |
+| **`Uninstall()`** | Disinstalla la famiglia (rimuove tutto ciò che `Install` aveva aggiunto). |
+| **`DeleteFamily()`** | Disinstalla **e** distrugge il COMP. Equivale a *Delete* nel menu contestuale. |
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`Install()`** | `ComponentEXT` | Installa la famiglia: monta bottone in toolbar, voce nel menu_op, watcher e custom operators. |
-| **`Uninstall()`** | `ComponentEXT` | Disinstalla la famiglia: rimuove bottone, voce nel menu_op e tutti i cloni installati. |
-| **`DeleteFamily()`** | `ComponentEXT` | Disinstalla **e** distrugge il COMP della famiglia. Equivalente alla voce *Delete* nel menu contestuale. |
+### Rename
 
-### Rename / Export
+| Funzione | Cosa fa |
+|---|---|
+| **`PromptRenameFamily()`** | Mostra un dialog all'utente per scrivere il nuovo nome. |
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`PromptRenameFamily()`** | `ComponentEXT` | Apre il dialog di rename. Su conferma rinomina la famiglia in modo atomico (cleanup vecchio nome + reinstall col nuovo). |
-| **`RenameFamily(new_name)`** | `RenameEXT` | Versione programmatica del rename, senza dialog. |
-| **`ExportFamily()`** | `ComponentEXT` | Apre il file picker e salva la famiglia come `.tox`. |
+> Per rinominare via codice senza dialog, usa
+> `op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')`.
+
+### Export
+
+| Funzione | Cosa fa |
+|---|---|
+| **`ExportFamily()`** | Apre un file picker e salva la famiglia come `.tox`. |
 
 ### Custom operators
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`EditCustomOperators()`** | `ComponentEXT` | Apre la cartella dei custom operators della famiglia in un network pane. |
-| **`PlaceNamedCustomOperator(name)`** | `ComponentEXT` | Piazza il custom operator indicato nel pane corrente, come se fosse stato scelto dall'OP Create dialog. |
+| Funzione | Cosa fa |
+|---|---|
+| **`EditCustomOperators()`** | Apre la cartella dei custom operators in un network pane. |
+| **`PlaceNamedCustomOperator(name)`** | Piazza nel pane corrente il custom operator indicato. |
 
-### Identità
+### Info
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`GetFamilyName()`** | `ComponentEXT` | Ritorna il nome canonico (sanitizzato) della famiglia. |
-| **`SanitizePluginName(name)`** | `ComponentEXT` | Applica le regole di nome valido (no spazi, solo `[A-Za-z0-9_]`, no numero iniziale). Utile prima di passare un nome a `RenameFamily`. |
+| Funzione | Cosa fa |
+|---|---|
+| **`GetFamilyName()`** | Ritorna il nome corrente della famiglia. |
 
-### Aggiornamento UI
+### Refresh UI
 
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`UpdateAll()`** | `ComponentEXT` | Forza un refresh completo di tutto ciò che la famiglia ha installato (bottone, colore, pagina About, custom operators). |
-| **`ScheduleUpdateAll()`** | `ComponentEXT` | Stesso refresh ma deferito di un frame, utile dopo modifiche rapide consecutive. |
-
-### Menu contestuale
-
-| Funzione | Estensione | Cosa fa |
-|---|---|---|
-| **`OpenFamilyContextMenu(buttonComp)`** | `ComponentEXT` | Apre il menu *Rename / Edit custom operators / Export family / Delete* allineato al bottone passato. |
+| Funzione | Cosa fa |
+|---|---|
+| **`UpdateAll()`** | Rinfresca tutto ciò che la famiglia ha installato (bottone, colore, pagina About, custom operators). |
 
 ---
 
 ## Esempi
 
 ```python
-# Lavora sul plugin nel suo complesso
-cf_installer = op('/ui/Plugins/Custom_families/Installer')
-cf_installer.ext.Install.Run()
-cf_installer.ext.Install.RealignScripts()
+# Plugin completo
+op('Custom_families').ext.Install.Run()
+op('Custom_families').ext.Uninstall.Run()
 
-# Lavora su una singola famiglia
-fam = op('/ui/Plugins/Custom_families/Local/MyFamily')
+# Singola famiglia
+fam = op('MyFamily')
 fam.ext.ComponentEXT.Install()
 fam.ext.ComponentEXT.PlaceNamedCustomOperator('MyOperator')
-fam.ext.RenameEXT.RenameFamily('NuovoNome')
 fam.ext.ComponentEXT.ExportFamily()
 fam.ext.ComponentEXT.Uninstall()
 ```
