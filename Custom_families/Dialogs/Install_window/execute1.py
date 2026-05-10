@@ -71,7 +71,9 @@ def onCreate():
 		target.cook(force=True)
 	except Exception:
 		pass
-	run("args[0].par.Winopen.pulse()", target, delayFrames=2)
+	# 15 frames is the safe value across Windows and macOS — on Mac the
+	# pulse arriving too early caused the dialog to never open.
+	run("args[0].par.Winopen.pulse()", target, delayFrames=15)
 	return
 
 
