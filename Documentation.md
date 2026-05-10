@@ -25,14 +25,14 @@ Ha tre classi di estensione, ciascuna agganciata a un sub-COMP diverso
 
 | Funzione | Cosa fa |
 |---|---|
-| **`Run()`** | Entry point principale dell'install. Gira in tre fasi: (A) riallinea il DAT `Install` stesso alla copia in LOCALAPPDATA e rientra; (B) riallinea ogni altro DAT elencato nella tabella `Scripts`; (C) decide tra full install, reinstall chirurgico delle parti mancanti, oppure no-op "già installato". Pilota la barra di progresso dell'Install_window attraverso tutti i passi (download, split del pane, watcher, inject toolbar, patch del menu_op, abilitazione runtime/Local, riallineamento finale). |
-| **`RealignScripts(only=None, skip=None)`** | Cammina la tabella `Scripts` dentro il COMP Installer e ripunta `par.file` di ogni riga al suo script canonico su disco in `LOCALAPPDATA/Derivative/TouchDesigner099/Custom families/...` quando il file esiste davvero lì. Ritorna `True` se almeno un `par.file` è cambiato. `only` restringe il pass a un singolo op path, `skip` ne esclude uno. |
+| **`Run()`** | Entry point principale dell'install. Gira in tre fasi: (A) riallinea il DAT `Install` stesso alla copia in LOCALAPPDATA e rientra; (B) riallinea ogni altro DAT elencato nella tabella `Scripts`; (C) decide tra full install, reinstall chirurgico delle parti mancanti, oppure no-op "già installato". Pilota la barra di progresso dell'Install_window attraverso tutti i passi. |
+| **`RealignScripts(only=None, skip=None)`** | Cammina la tabella `Scripts` dentro il COMP Installer e ripunta `par.file` di ogni riga al suo script canonico su disco in `LOCALAPPDATA/Derivative/TouchDesigner099/Custom families/...`. |
 
 ### 1.2 Estensione `Uninstaller` — `Custom_families/Uninstaller/Uninstall.py`
 
 | Funzione | Cosa fa |
 |---|---|
-| **`Run()`** | Entry point principale di uninstall. Pilota una sequenza multi-step deferita (visibile nella barra di progresso dell'Uninstall_window) che: ripristina la visibilità del panebar, ripristina lo stile originale della toolbar, ripristina i collegamenti `familypanel`/`families` del menu_op ai default TD, distrugge i contenitori `Local` e `Server` (lasciando ai watcher di ogni famiglia il tempo di scatenare la propria pulizia a catena), rimuove gli inject `Local_bar` / `Server_bar` / pulsante / `Pages` / `Page_number`, chiude il pane della toolbar, infine distrugge il COMP `Custom_families`. |
+| **`Run()`** | Entry point principale di uninstall. Pilota una sequenza multi-step deferita (visibile nella barra di progresso dell'Uninstall_window) che: ripristina la visibilità del panebar, ripristina lo stile originale della toolbar, ripristina i collegamenti `familypanel`/`families` del menu_op ai default TD, distrugge i contenitori `Local` e `Server`, rimuove gli inject `Local_bar` / `Server_bar` / pulsante / `Pages` / `Page_number`, chiude il pane della toolbar, infine distrugge il COMP `Custom_families`. |
 
 ### 1.3 Estensione `Updater` — `Custom_families/Updater/Update.py`
 
