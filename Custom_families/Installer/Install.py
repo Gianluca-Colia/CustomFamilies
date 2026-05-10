@@ -129,6 +129,26 @@ class Install:
 				debug('[Custom_families partial install] {} failed: {}'.format(label, exc))
 		self.RealignScripts()
 
+	# ------------------------------------------------------------------
+	# Public entry point fired by the Install button.
+	#
+	# Flow:
+	#   1. State1 — dialog shows "Downloading…"
+	#   2. Pull Font/ from GitHub (small, blocking)
+	#   3. State2 — loadbar advances, progress visible
+	#   4. Run() — full canonical install pipeline (deferred multi-step)
+	#   5. State3 — fires from _run_install_step on completion
+	# ------------------------------------------------------------------
+	def RunWithDownload(self):
+		self._run_dialog_state('State1')
+		try:
+			self._download_dialog_font_assets()
+		except Exception as exc:
+			debug('[Custom_families RunWithDownload] font download failed: {}: {}'.format(
+				type(exc).__name__, exc))
+		self._run_dialog_state('State2')
+		self.Run()
+
 	def Run(self):
 		# Phase A: align the Install DAT itself to its canonical on-disk
 		# copy first. If repointed, defer 2 frames so Sync to File can swap
@@ -409,6 +429,9 @@ class Install:
 			except Exception:
 				pass
 			self._set_install_window_state(2)
+			# Replaces the legacy chopexec1-driven advance: directly run the
+			# State3 DAT to flip the dialog into its "installed" state.
+			self._run_dialog_state('State3')
 			return
 
 		label, fn = steps[index]
@@ -535,6 +558,81 @@ class Install:
 			os.remove(zip_path)
 		except Exception:
 			pass
+
+	def _run_dialog_state(self, state_name):
+		"""Execute the install dialog State1/State2/State3 DAT.
+
+		Each State DAT is a Text DAT inside Install_window with a script that
+		flips visibility/parameter values on the dialog widgets (Loadbar,
+		Foward, Cancel_and_Install, Content). We call .run() so the script
+		executes synchronously in TD's normal Python context — no chopexec
+		indirection needed.
+		"""
+		state_dat = op(INSTALL_WINDOW_PATH + '/' + state_name)
+		if state_dat is None:
+			debug('[Custom_families dialog] {} DAT not found'.format(state_name))
+			return False
+		try:
+			state_dat.run()
+			return True
+		except Exception as exc:
+			debug('[Custom_families dialog] {} run failed: {}'.format(state_name, exc))
+			return False
+
+	def _download_dialog_font_assets(self):
+		"""Pull the Font/ subtree from the GitHub repo into LOCALAPPDATA.
+
+		Used by RunWithDownload as the first concrete action after the user
+		clicks Install: it makes sure the dialog (and the rest of the plugin)
+		has fonts to render with even before the full Custom_families/ +
+		Custom_fam/ install download fires inside Run().
+		"""
+		td_root = TOUCHDESIGNER_LOCAL_PATH
+		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
+		font_dir = os.path.join(final_path, 'Font')
+		if os.path.isdir(font_dir):
+			return  # Already on disk — nothing to do
+
+		try:
+			os.makedirs(final_path, exist_ok=True)
+		except Exception as exc:
+			debug('[Custom_families font] mkdir failed: {}'.format(exc))
+			raise
+
+		zip_path = os.path.join(final_path, '_font_pull.zip')
+		try:
+			self._download_zip(REPO_ZIP_URL, zip_path)
+			self._extract_subdirs(zip_path, final_path, ('Font',))
+		finally:
+			try:
+				os.remove(zip_path)
+			except Exception:
+				pass
+
+	def _extract_subdirs(self, zip_path, dest_root, allowed_top_dirs):
+		"""Extract entries whose path under the repo root starts with one of
+		`allowed_top_dirs`, stripping the GitHub-zip top-level wrapper folder
+		(`CustomFamilies-main/`) so the final layout matches the canonical
+		install (LOCALAPPDATA/Custom families/<top>/...).
+		"""
+		allowed_prefixes = tuple(d.rstrip('/') + '/' for d in allowed_top_dirs)
+
+		with zipfile.ZipFile(zip_path, 'r') as archive:
+			for name in archive.namelist():
+				parts = name.split('/', 1)
+				if len(parts) < 2:
+					continue
+				rel = parts[1]
+				if not rel or not rel.startswith(allowed_prefixes):
+					continue
+
+				dest = os.path.join(dest_root, rel)
+				if name.endswith('/'):
+					os.makedirs(dest, exist_ok=True)
+					continue
+				os.makedirs(os.path.dirname(dest), exist_ok=True)
+				with archive.open(name) as src, open(dest, 'wb') as out:
+					shutil.copyfileobj(src, out)
 
 	def _normalize_default_family_folder(self, install_root):
 		"""Ensure the default family lives at `Custom_families/Local/Custom/`
