@@ -413,7 +413,7 @@ class Install:
 		Final layout:
 		    {LOCALAPPDATA}/Derivative/TouchDesigner099/Custom families/
 		        ├── Custom_families/
-		        ├── Custom_fam/
+		        │   └── Local/Custom_fam/   (default family template)
 		        ├── Font/  Images/  ui backup/
 		        ├── .tox/  docs/  README.md  LICENSE  .gitignore
 
