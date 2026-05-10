@@ -520,6 +520,17 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
+		# Rename the default family folder Custom_fam -> Custom so that the
+		# on-disk layout matches the in-TD path /ui/Plugins/Custom_families/
+		# Local/Custom and par.file expressions resolve cleanly.
+		try:
+			fam_src = os.path.join(final_path, 'Custom_families', 'Local', 'Custom_fam')
+			fam_dst = os.path.join(final_path, 'Custom_families', 'Local', 'Custom')
+			if os.path.isdir(fam_src) and not os.path.isdir(fam_dst):
+				os.rename(fam_src, fam_dst)
+		except Exception as exc:
+			debug('[Custom_families download] Custom_fam rename skipped: {}'.format(exc))
+
 		# Cleanup zip
 		try:
 			os.remove(zip_path)
