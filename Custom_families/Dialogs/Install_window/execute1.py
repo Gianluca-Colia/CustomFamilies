@@ -14,9 +14,8 @@ import urllib.error
 import zipfile
 
 ASSETS_REPO_ZIP_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/archive/refs/heads/main.zip'
-ASSETS_DISK_ROOT = os.path.join(
-	os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099', 'Custom families'
-)
+# app.preferencesFolder is the TD prefs folder, cross-platform.
+ASSETS_DISK_ROOT = os.path.join(app.preferencesFolder, 'Custom families')
 ASSETS_PREFETCH_DIRS = ('Font', 'Images')
 
 

@@ -5,9 +5,8 @@ UI_ROOT_PATH = '/ui'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
 TOP_PANEBAR_PATH = '/ui/panes/panebar/pane1'
 TOP_PANEBAR_SKIP_DISPLAY_ON = ('historydrop', 'addbookmark')
-SCRIPTS_DISK_ROOT = os.path.join(
-	os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099', 'Custom families'
-)
+# app.preferencesFolder is the TD prefs folder, cross-platform.
+SCRIPTS_DISK_ROOT = os.path.join(app.preferencesFolder, 'Custom families')
 CUSTOM_FAMILIES_BUTTON_NAME = 'Custom_families_button'
 LOCAL_BAR_NAME = 'Local_bar'
 SERVER_BAR_NAME = 'Server_bar'

@@ -15,7 +15,10 @@ CUSTOM_FAMILIES_NAME = 'Custom_families'
 CUSTOM_FAMILIES_PATH = '/ui/Plugins/Custom_families'
 LOADBAR_PATH = '/ui/Plugins/Custom_families/Dialogs/Install_window/Loadbar'
 INSTALL_WINDOW_PATH = '/ui/Plugins/Custom_families/Dialogs/Install_window'
-TOUCHDESIGNER_LOCAL_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'Derivative', 'TouchDesigner099')
+# app.preferencesFolder resolves to the TD prefs folder cross-platform:
+#   Windows: %LOCALAPPDATA%/Derivative/TouchDesigner099
+#   macOS:   ~/Library/Application Support/Derivative/TouchDesigner099
+TOUCHDESIGNER_LOCAL_PATH = app.preferencesFolder
 SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
 UI_BACKUP_FOLDER_PATH = os.path.join(SCRIPTS_DISK_ROOT, 'ui backup')
 UI_BACKUP_FILE_PATH = os.path.join(UI_BACKUP_FOLDER_PATH, 'ui.tox')
