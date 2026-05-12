@@ -511,7 +511,7 @@ class ComponentEXT:
 		except Exception:
 			return None
 
-	def EditCustomOperators(self):
+	def EditOperators(self):
 		root = self._GetCustomOperatorsRoot()
 		if root is None:
 			return False

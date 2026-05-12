@@ -35,7 +35,7 @@ def onSelect(info):
         'Rename':                'Rename',
         'Duplicate':             'Duplicate',
         'Change color':          'Changecolor',
-        'Edit custom operators': 'Editcustomoperators',
+        'Edit operators':        'Editoperators',
         'Go to family':          'Gotofamily',
         'Update':                'Update',
         'Export family':         'Exportfamily',

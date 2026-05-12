@@ -126,7 +126,7 @@ From left to right:
 | **Rename** | `Ctrl+R` | Renames the family in-place |
 | **Change color** | | Opens the button colour picker |
 | **Duplicate** | `Ctrl+D` | Duplicates the family with an independent identity |
-| **Edit custom operators** | `Ctrl+E` | Opens the custom operators in a new pane |
+| **Edit operators** | `Ctrl+E` | Opens the custom operators in a new pane |
 | **Export family** | | Exports the family as a `.tox` |
 | **Release notes** | | Shows the release notes |
 | **Edit release notes** | | Opens the release notes editor |

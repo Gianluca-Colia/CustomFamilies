@@ -30,7 +30,7 @@ keyInfo - A namedtuple containing the following members:
 FUNCTION_TO_PULSE = {
 	'rename': 'Rename',
 	'duplicate': 'Duplicate',
-	'edit custom operators': 'Editcustomoperators',
+	'edit operators': 'Editoperators',
 	'change color': 'Changecolor',
 	'manual update': 'Manualupdate',
 	'export family': 'Exportfamily',

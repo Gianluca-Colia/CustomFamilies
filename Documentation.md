@@ -67,7 +67,7 @@ op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')
 
 | Funzione | Cosa fa |
 |---|---|
-| **`EditCustomOperators()`** | Apre la cartella dei custom operators in un network pane. |
+| **`EditOperators()`** | Apre la cartella dei custom operators in un network pane. |
 
 ### Info
 
@@ -93,7 +93,7 @@ op('Custom_families').ext.Uninstall.Run()
 # Singola famiglia
 fam = op('MyFamily')
 fam.ext.ComponentEXT.Install()
-fam.ext.ComponentEXT.EditCustomOperators()
+fam.ext.ComponentEXT.EditOperators()
 fam.ext.ComponentEXT.ExportFamily()
 fam.ext.ComponentEXT.Uninstall()
 ```

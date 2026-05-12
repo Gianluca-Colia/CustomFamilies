@@ -3,7 +3,7 @@ CHOP Execute DAT
 Menu action bridge.
 """
 
-ACTION_NAME = 'Editcustomoperators'
+ACTION_NAME = 'Editoperators'
 
 
 def _get_family_comp():
@@ -122,7 +122,7 @@ def _edit_custom_operators():
 def _dispatch_action(action_name):
 	action_name = str(action_name or '').strip()
 
-	if action_name == 'Editcustomoperators':
+	if action_name == 'Editoperators':
 		return _edit_custom_operators()
 	return False
 
