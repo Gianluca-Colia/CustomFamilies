@@ -23,7 +23,6 @@ SCRIPTS_DISK_ROOT = os.path.join(TOUCHDESIGNER_LOCAL_PATH, 'Custom families')
 UI_BACKUP_FOLDER_PATH = os.path.join(SCRIPTS_DISK_ROOT, 'ui backup')
 UI_BACKUP_FILE_PATH = os.path.join(UI_BACKUP_FOLDER_PATH, 'ui.tox')
 SCRIPTS_TABLE_NAME = 'Scripts'
-FONTS_TABLE_NAME = 'Text'
 PLUGINS_PREFIX = '/ui/Plugins/'
 INSTALL_DAT_NAME = 'Install'
 RUNTIME_NAME = 'Runtime'
@@ -225,66 +224,6 @@ class Install:
 			if self._realign_one(dat_path):
 				changed = True
 		return changed
-
-	# ------------------------------------------------------------------
-	# Font realignment — read the `Text` table inside this Installer COMP
-	# (no header, 2 columns: op_path | font_expression) and for every
-	# listed operator install the given Python expression as the par.Font
-	# expression, so the font reference auto-resolves to the correct path
-	# under app.preferencesFolder/Custom families/Font/ if the asset exists
-	# and falls back to '' otherwise.
-	#
-	# Triggered by Install_window/chopexec1 right before transitioning
-	# into State 2 — guarantees the loadbar/progress widgets render with
-	# the expected typeface as soon as the dialog enters its install
-	# state, even on the very first install run.
-	# ------------------------------------------------------------------
-	def RealignFonts(self):
-		"""Walk the `Text` table and apply each row's font expression to the
-		par.Font of the listed operator. Returns True if at least one
-		par.Font expression was rewritten.
-		"""
-		table = self.ownerComp.op(FONTS_TABLE_NAME)
-		if table is None or table.numRows == 0:
-			return False
-
-		changed = False
-		for row in range(table.numRows):
-			try:
-				op_path = table[row, 0].val.strip()
-				font_expr = table[row, 1].val.strip()
-			except Exception:
-				continue
-			if not op_path or not font_expr:
-				continue
-			if self._realign_font_one(op_path, font_expr):
-				changed = True
-		return changed
-
-	def _realign_font_one(self, op_path, font_expr):
-		target = op(op_path)
-		if target is None:
-			return False
-		par = target.pars('Font')
-		if not par:
-			return False
-		par = par[0]
-		try:
-			current_expr = par.expr or ''
-		except Exception:
-			current_expr = ''
-		try:
-			current_mode = par.mode
-		except Exception:
-			current_mode = None
-		if current_expr == font_expr and current_mode == ParMode.EXPRESSION:
-			return False
-		try:
-			par.expr = font_expr
-			par.mode = ParMode.EXPRESSION
-		except Exception:
-			return False
-		return True
 
 	def _realign_one(self, dat_path):
 		"""Install a self-healing expression on the DAT's par.file.
