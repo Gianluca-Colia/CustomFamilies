@@ -47,6 +47,8 @@ def onSelect(info):
         par_names = [par_name]
         if par_name == 'Update':
             par_names.append('Manualupdate')
+        if par_name == 'Editoperators':
+            par_names.append('Editcustomoperators')
 
         targets = []
         for depth in (2, 3):
