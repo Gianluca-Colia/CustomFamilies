@@ -32,12 +32,6 @@ op('Custom_families').ext.Install.Run()
 op('Custom_families').ext.Uninstall.Run()
 ```
 
-### Manutenzione
-
-| Funzione | Cosa fa |
-|---|---|
-| **`Install.RealignScripts()`** | Ripunta i `par.file` di ogni DAT alla copia canonica in `LOCALAPPDATA/.../Custom families/...`. Utile dopo aver spostato la cartella di progetto. |
-
 ---
 
 ## 2. Singola famiglia — `Custom_fam`
@@ -74,7 +68,6 @@ op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')
 | Funzione | Cosa fa |
 |---|---|
 | **`EditCustomOperators()`** | Apre la cartella dei custom operators in un network pane. |
-| **`PlaceNamedCustomOperator(name)`** | Piazza nel pane corrente il custom operator indicato. |
 
 ### Info
 
@@ -100,7 +93,7 @@ op('Custom_families').ext.Uninstall.Run()
 # Singola famiglia
 fam = op('MyFamily')
 fam.ext.ComponentEXT.Install()
-fam.ext.ComponentEXT.PlaceNamedCustomOperator('MyOperator')
+fam.ext.ComponentEXT.EditCustomOperators()
 fam.ext.ComponentEXT.ExportFamily()
 fam.ext.ComponentEXT.Uninstall()
 ```
