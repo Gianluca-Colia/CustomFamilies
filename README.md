@@ -59,7 +59,7 @@ Once installed, a **horizontal toolbar** is added at the top of the
 TouchDesigner interface with everything you need to manage your families:
 
 <div align="center">
-  <img src="Images/Toolbar.png" alt="Custom Families toolbar" />
+  <img src="readme-assets/Toolbarv.png" alt="Custom Families toolbar" />
 </div>
 
 From left to right:
@@ -70,7 +70,7 @@ From left to right:
 <td><b>Preferences</b> — opens the preferences panel and contains the plugin uninstall button.</td>
 </tr>
 <tr>
-<td width="100" align="center"><img src="Images/Local_text.png" width="80" alt="Local" /></td>
+<td width="100" align="center"><img src="readme-assets/Local_text.png" width="80" alt="Local" /></td>
 <td><b>Local</b> — your personal framework: contains all the families you create or import on the local machine.</td>
 </tr>
 <tr>
@@ -78,11 +78,11 @@ From left to right:
 <td><b>Create new family</b> — one click creates a new empty family inside <code>Local</code>, ready to configure.</td>
 </tr>
 <tr>
-<td width="100" align="center"><img src="Images/Button_Custom.png" width="80" alt="Custom family" /></td>
+<td width="100" align="center"><img src="readme-assets/Button_Custom.png" width="80" alt="Custom family" /></td>
 <td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other</code>).</td>
 </tr>
 <tr>
-<td width="100" align="center"><img src="Images/Server_text.png" width="80" alt="Server" /></td>
+<td width="100" align="center"><img src="readme-assets/Server_text.png" width="80" alt="Server" /></td>
 <td><b>Server</b> — the section where built-in families distributed and updated by the plugin developers will appear.</td>
 </tr>
 </table>
