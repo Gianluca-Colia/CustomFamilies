@@ -1,7 +1,5 @@
 <div align="center">
-  <img src="readme-assets/Logo%20loop.gif" alt="Custom Families" width="260" />
-
-  # Custom Families
+  <img src="readme-assets/Nameplate%20loop.gif" alt="Custom Families" />
 
   TouchDesigner plugin to **create, manipulate, save and export
   custom operator families**, with automatic installation and
@@ -17,10 +15,6 @@
   [![Issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/issues)
   [![Stars](https://img.shields.io/github/stars/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/stargazers)
   [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/main)
-</div>
-
-<div align="center">
-  <img src="readme-assets/Nameplate%20loop.gif" alt="Custom Families nameplate" />
 </div>
 
 ---
@@ -54,6 +48,10 @@ restore the UI to its original state.
 ---
 
 ## What gets added to the UI
+
+<div align="center">
+  <img src="readme-assets/Logo%20loop.gif" alt="Custom Families" width="260" />
+</div>
 
 Once installed, a **horizontal toolbar** is added at the top of the
 TouchDesigner interface with everything you need to manage your families:
