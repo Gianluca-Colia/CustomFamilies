@@ -7,11 +7,16 @@
   custom operator families**, with automatic installation and
   uninstallation and a built-in compatibility system.
 
-  [![Download](https://img.shields.io/badge/Download-Custom__families.tox-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox)
+  [![Download TOX](https://img.shields.io/badge/Download_TOX-Custom__families.tox-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox)
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   [![TouchDesigner](https://img.shields.io/badge/TouchDesigner-2025.32460-blueviolet?style=for-the-badge)](https://derivative.ca/download)
 
   Developed and tested on **TouchDesigner build 2025.32460** — compatible with this version.
+
+  [![License: MIT](https://img.shields.io/github/license/Gianluca-Colia/CustomFamilies?style=flat-square)](LICENSE)
+  [![Issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/issues)
+  [![Stars](https://img.shields.io/github/stars/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/stargazers)
+  [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/main)
 </div>
 
 ---
@@ -143,27 +148,12 @@ Features currently in development:
 
 ---
 
-## Known issues
+## Links
 
-| Issue | Status |
-|---|---|
-| Visual realignment of the two context menus (**Preferences** button and **Family** button) | Fix in progress |
-| Visual realignment of the **Edit release notes** / **View release notes** windows | Fix in progress |
-
----
-
-## Resolved issues
-
-| Issue | Resolution |
-|---|---|
-| **Create family** button lost its script path after the project folder was moved — the function did not fire | Fixed: scripts are now realigned to the canonical install path on every install |
-
----
-
-## Recent fixes
-
-- **Final script realignment after download** — `RealignScripts` now runs as the last install step, after the repo zip has been extracted to LOCALAPPDATA, so every `par.file` ends up on the freshly downloaded copy instead of being skipped because the canonical file did not exist yet.
-- **Robust install detection** — the download skip-check now probes for `Custom_families/Installer/Install.py` instead of just the destination folder, so the prefetch step (which creates the folder for fonts/images) no longer prevents the full install from extracting.
+- 📖 [Developer documentation](Documentation.md) — public API of the two main components
+- 🐞 [Issues / known bugs](https://github.com/Gianluca-Colia/CustomFamilies/issues) — report a bug or browse what's pending
+- 🚀 [Releases](https://github.com/Gianluca-Colia/CustomFamilies/releases) — tagged versions and changelogs
+- 📄 [License (MIT)](LICENSE)
 
 ---
 
