@@ -1,6 +1,13 @@
 def onSelect(info):
     item = str(info.get('item', '') or '').strip()
 
+    try:
+        p2 = parent(2)
+        p3 = parent(3)
+        debug(f"[popMenu] onSelect item={item!r} p2={getattr(p2,'name','?')} p3={getattr(p3,'name','?')}")
+    except Exception as e:
+        debug(f"[popMenu] onSelect debug failed: {e}")
+
     if item == 'Edit':
         try:
             parent(2).par.Edit.pulse()
