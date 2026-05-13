@@ -21,23 +21,12 @@
 
 ## What it is
 
-**Custom Families** is a powerful **TouchDesigner plugin** and **TOX extension** that lets you **create, manipulate, save and export** custom operator families with ease. Features a built-in compatibility system across different TouchDesigner versions, allowing you to manage, organize, and distribute custom operators efficiently.
+Custom Families is a TouchDesigner plugin that lets you **create,
+manipulate, save and export** custom operator families, with a
+compatibility system across different versions.
 
-Whether you're building **custom COMP families**, **operator extensions**, or **TouchDesigner tools**, this plugin streamlines the entire workflow with automatic installation, intelligent dependency management, and version control capabilities.
-
-**Built-in families** distributed through a continuously updated server are coming soon.
-
----
-
-## Key Features
-
-- 🎨 **Create custom operator families** — build and organize custom COMP families effortlessly
-- 📦 **Drag-and-drop TOX import** — auto-install `.tox` files directly into your project
-- 🔧 **Operator extension management** — manage complex operator hierarchies and dependencies
-- 💾 **Export families as TOX** — package and share your custom operators and families
-- 🔄 **Automatic installation/uninstallation** — one-click setup and cleanup
-- 🛡️ **Compatibility system** — works across different TouchDesigner versions (2025+)
-- 🎯 **Overcome TouchDesigner limitations** — bypass the native 12-family limit in menu_op
+**Built-in families** distributed through a continuously updated
+server are coming soon.
 
 ---
 
@@ -88,7 +77,8 @@ From left to right:
 </tr>
 <tr>
 <td width="100" align="center"><img src="readme-assets/Button_Custom.png" width="80" alt="Custom family" /></td>
-<td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other</code> family).</td>
+<td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other[...]
+</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="readme-assets/Server_text.png" width="80" alt="Server" /></td>
@@ -101,32 +91,30 @@ From left to right:
 ## Features
 
 <details>
-<summary><b>Custom_families — plugin features</b></summary>
+<summary><b>Custom_families — features</b></summary>
 
 - Dedicated horizontal toolbar, integrated into the TD layout
 - Installation window with loading bar
 - Uninstallation window with loading bar
-- Local framework to build your own families and custom operators
+- Local framework to build your own families
 - Smart state check: if components are missing, they are reinstalled
 - Clean uninstall: every trace of the plugin is removed when it is uninstalled
 - Backup of the original UI before installation
 - Overcomes TouchDesigner's built-in 12-family limit in menu_op
 - Page numbering system to navigate families beyond the first page
-- Support for custom operator distribution and versioning
 
 </details>
 
 <details>
-<summary><b>Custom_fam — family management features</b></summary>
+<summary><b>Custom_fam — family features</b></summary>
 
 - Auto-install: drag-and-drop into `/project1` → the family enters `Custom_families/Local` on its own
 - Toolbar button generated automatically, with customisable colour
-- Full context menu for operator family management
+- Full context menu (see next section)
 - In-place rename from the button label
 - One-click duplication with separate identity
-- Built-in set of custom operators and COMP templates
+- Built-in set of custom operators
 - Integrated release notes, with editor and viewer
-- Family versioning and compatibility tracking
 
 </details>
 
@@ -148,16 +136,6 @@ From left to right:
 | **Delete** | `Del` | Deletes the family and cleans up every UI trace |
 
 </details>
-
----
-
-## Use Cases
-
-- 📚 **Organize reusable COMP families** — centralize your custom components and operator templates
-- 🎬 **Build production tools** — create distributable operator extensions for teams
-- 🔌 **Develop TouchDesigner extensions** — package custom operators as installable plugins
-- 🌐 **Share operator libraries** — export and distribute families as `.tox` files
-- 🚀 **Scale your workflow** — manage complex operator hierarchies efficiently
 
 ---
 
