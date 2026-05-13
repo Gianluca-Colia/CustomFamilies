@@ -5,7 +5,7 @@
   custom operator families**, with automatic installation and
   uninstallation and a built-in compatibility system.
 
-  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_familie[...]
+  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox)
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   [![TouchDesigner](https://img.shields.io/badge/TouchDesigner-2025.32460-blueviolet?style=for-the-badge)](https://derivative.ca/download)
 
@@ -77,8 +77,7 @@ From left to right:
 </tr>
 <tr>
 <td width="100" align="center"><img src="readme-assets/Button_Custom.png" width="80" alt="Custom family" /></td>
-<td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other[...]
-</td>
+<td><b>Local families</b> — each family inside <code>Local</code> gets its own button here (shown: a sample <i>Custom family</i> installed with the plugin, plus another family called <code>other</code> family).</td>
 </tr>
 <tr>
 <td width="100" align="center"><img src="readme-assets/Server_text.png" width="80" alt="Server" /></td>
