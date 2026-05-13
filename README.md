@@ -47,6 +47,15 @@ restore the UI to its original state.
 
 ---
 
+## Compatibility
+
+This plugin is compatible with:
+
+- 🪟 **Windows** — fully supported
+- 🍎 **macOS** — fully supported
+
+---
+
 ## What gets added to the UI
 
 <div align="center">
