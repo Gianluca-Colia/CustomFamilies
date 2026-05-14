@@ -6,8 +6,19 @@ import shutil
 
 UI_ROOT_PATH = '/ui'
 
-REPO_ZIP_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/archive/refs/heads/main.zip'
-EXTRACTED_FOLDER_NAME = 'CustomFamilies-main'   # GitHub default name when extracting a branch zip
+# GitHub repo source. The active branch is chosen at install time
+# from the Custom_families root COMP's "Devepment mode" toggle:
+#   Off -> PROD_BRANCH (production, stable)
+#   On  -> DEV_BRANCH (development, ahead of main)
+# GitHub names the extracted top-level folder `<repo>-<branch>`, so
+# both URL and extracted folder name follow the same template.
+REPO_OWNER = 'Gianluca-Colia'
+REPO_NAME = 'CustomFamilies'
+REPO_ZIP_URL_TEMPLATE = 'https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip'
+EXTRACTED_FOLDER_TEMPLATE = '{repo}-{branch}'
+PROD_BRANCH = 'main'
+DEV_BRANCH = 'dev'
+DEV_MODE_PAR_CANDIDATES = ('Devepmentmode', 'Developmentmode', 'Devmode')
 DOWNLOAD_DEST_FOLDER_NAME = 'Custom families'    # final folder name (with space) under TD AppData
 PLUGINS_ROOT_NAME = 'Plugins'
 PLUGINS_ROOT_PATH = '/ui/Plugins'
@@ -71,6 +82,42 @@ class Install:
 		self.plugins_root = op(PLUGINS_ROOT_PATH)
 		self.menu_op = op(MENU_OP_PATH)
 		self.top_panebar = op(TOP_PANEBAR_PATH)
+
+	# ------------------------------------------------------------------
+	# Branch selection — the Custom_families root COMP exposes a
+	# "Devepment mode" toggle. When On the install pulls from the dev
+	# branch instead of main. Everything else (zip URL, extracted
+	# folder, ...) derives from this one decision.
+	# ------------------------------------------------------------------
+	def _is_dev_mode(self):
+		root = self.ownerComp.parent() if self.ownerComp is not None else None
+		if root is None:
+			return False
+		for name in DEV_MODE_PAR_CANDIDATES:
+			par = getattr(root.par, name, None)
+			if par is None:
+				continue
+			try:
+				return bool(par.eval())
+			except Exception:
+				continue
+		return False
+
+	def _active_branch(self):
+		return DEV_BRANCH if self._is_dev_mode() else PROD_BRANCH
+
+	def _repo_zip_url(self):
+		return REPO_ZIP_URL_TEMPLATE.format(
+			owner=REPO_OWNER, repo=REPO_NAME, branch=self._active_branch()
+		)
+
+	def _extracted_folder_name(self):
+		return EXTRACTED_FOLDER_TEMPLATE.format(
+			repo=REPO_NAME, branch=self._active_branch()
+		)
+
+	def _zip_basename(self):
+		return self._extracted_folder_name() + '.zip'
 
 	# ------------------------------------------------------------------
 	# Inject inventory — used by Run() to decide between full install,
@@ -485,7 +532,10 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		zip_path = os.path.join(td_root, 'CustomFamilies-main.zip')
+		zip_path = os.path.join(td_root, self._zip_basename())
+		zip_url = self._repo_zip_url()
+		debug('[Custom_families] downloading from branch \'{}\': {}'.format(
+			self._active_branch(), zip_url))
 
 		# Download — urlretrieve is brittle on TD's embedded Python (no CA
 		# bundle configured by default → SSL verify fails on github.com,
@@ -495,7 +545,7 @@ class Install:
 		# via debug() so we don't mask the root cause behind a generic
 		# "offline" messagebox.
 		try:
-			self._download_zip(REPO_ZIP_URL, zip_path)
+			self._download_zip(zip_url, zip_path)
 		except Exception as exc:
 			debug('[Custom_families download] failed: {}: {}'.format(
 				type(exc).__name__, exc))
@@ -514,10 +564,10 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		# Rename CustomFamilies-main → Custom families. If the destination
+		# Rename CustomFamilies-<branch> → Custom families. If the destination
 		# already exists, drop it first (the just-downloaded copy is the
 		# authoritative one).
-		extracted_path = os.path.join(td_root, EXTRACTED_FOLDER_NAME)
+		extracted_path = os.path.join(td_root, self._extracted_folder_name())
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
 		try:
 			if os.path.isdir(final_path):
