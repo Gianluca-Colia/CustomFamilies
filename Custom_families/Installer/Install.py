@@ -526,8 +526,26 @@ class Install:
 		install_marker = os.path.join(
 			final_path, 'Custom_families', 'Installer', 'Install.py'
 		)
-		if os.path.isfile(install_marker) and not self._force_download_enabled():
+		# Auto-detect branch mismatch: dev-branch installs ship a
+		# `DEVELOP_MODE.txt` sentinel at the root of `Custom families/`.
+		# If its presence on disk disagrees with the Devepment mode toggle,
+		# the user just switched branches → force a re-download so the
+		# wrong-branch files don't keep running.
+		dev_marker_path = os.path.join(final_path, 'DEVELOP_MODE.txt')
+		branch_on_disk_is_dev = os.path.isfile(dev_marker_path)
+		want_dev = self._is_dev_mode()
+		branch_mismatch = branch_on_disk_is_dev != want_dev
+
+		if (
+			os.path.isfile(install_marker)
+			and not self._force_download_enabled()
+			and not branch_mismatch
+		):
 			return
+
+		if branch_mismatch:
+			debug('[Custom_families] branch mismatch detected: on-disk is dev={}, toggle wants dev={} → re-downloading'.format(
+				branch_on_disk_is_dev, want_dev))
 
 		try:
 			if not os.path.isdir(td_root):
