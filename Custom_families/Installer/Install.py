@@ -1,4 +1,4 @@
-import os
+﻿import os
 import ssl
 import urllib.request
 import zipfile
@@ -277,15 +277,17 @@ class Install:
 		return changed
 
 	def _realign_one(self, dat_path):
-		"""Install a self-healing expression on the DAT's par.file.
+		"""Bind the DAT's par.file to its canonical on-disk path with a
+		plain concat expression — no isfile/ternary.
 
 		Pattern:
 		    app.preferencesFolder + '/Custom families/<rel>.py'
-		    if __import__('os').path.isfile(<same path>) else ''
 
-		The expression resolves to the canonical on-disk path when the file
-		exists at LOCALAPPDATA, otherwise to an empty string — so par.file is
-		never left pointing at a stale absolute path that no longer exists.
+		The path resolves on each machine via `app.preferencesFolder`,
+		so the binding is portable across Windows/macOS. When the file
+		doesn't exist on disk yet TD just shows the DAT empty / warns
+		in textport; the embedded text in the .tox keeps running until
+		the install pulls the .py.
 		"""
 		target = op(dat_path)
 		if target is None or not target.pars('file'):
@@ -297,10 +299,7 @@ class Install:
 			return False
 
 		rel_disk = '/Custom families/' + rel + '.py'
-		path_expr = 'app.preferencesFolder + ' + repr(rel_disk)
-		new_expr = (
-			path_expr + " if __import__('os').path.isfile(" + path_expr + ") else ''"
-		)
+		new_expr = 'app.preferencesFolder + ' + repr(rel_disk)
 
 		par = target.par.file
 		try:
