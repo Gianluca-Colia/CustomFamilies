@@ -1,4 +1,4 @@
-﻿import os
+import os
 import ssl
 import urllib.request
 import zipfile
@@ -6,19 +6,8 @@ import shutil
 
 UI_ROOT_PATH = '/ui'
 
-# GitHub repo source. The active branch is chosen at install time
-# from the Custom_families root COMP's "Devepment mode" toggle:
-#   Off -> PROD_BRANCH (production, stable)
-#   On  -> DEV_BRANCH (development, ahead of main)
-# GitHub names the extracted top-level folder `<repo>-<branch>`, so
-# both URL and extracted folder name follow the same template.
-REPO_OWNER = 'Gianluca-Colia'
-REPO_NAME = 'CustomFamilies'
-REPO_ZIP_URL_TEMPLATE = 'https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip'
-EXTRACTED_FOLDER_TEMPLATE = '{repo}-{branch}'
-PROD_BRANCH = 'main'
-DEV_BRANCH = 'dev'
-DEV_MODE_PAR_CANDIDATES = ('Devepmentmode', 'Developmentmode', 'Devmode')
+REPO_ZIP_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/archive/refs/heads/main.zip'
+EXTRACTED_FOLDER_NAME = 'CustomFamilies-main'   # GitHub default name when extracting a branch zip
 DOWNLOAD_DEST_FOLDER_NAME = 'Custom families'    # final folder name (with space) under TD AppData
 PLUGINS_ROOT_NAME = 'Plugins'
 PLUGINS_ROOT_PATH = '/ui/Plugins'
@@ -82,42 +71,6 @@ class Install:
 		self.plugins_root = op(PLUGINS_ROOT_PATH)
 		self.menu_op = op(MENU_OP_PATH)
 		self.top_panebar = op(TOP_PANEBAR_PATH)
-
-	# ------------------------------------------------------------------
-	# Branch selection — the Custom_families root COMP exposes a
-	# "Devepment mode" toggle. When On the install pulls from the dev
-	# branch instead of main. Everything else (zip URL, extracted
-	# folder, ...) derives from this one decision.
-	# ------------------------------------------------------------------
-	def _is_dev_mode(self):
-		root = self.ownerComp.parent() if self.ownerComp is not None else None
-		if root is None:
-			return False
-		for name in DEV_MODE_PAR_CANDIDATES:
-			par = getattr(root.par, name, None)
-			if par is None:
-				continue
-			try:
-				return bool(par.eval())
-			except Exception:
-				continue
-		return False
-
-	def _active_branch(self):
-		return DEV_BRANCH if self._is_dev_mode() else PROD_BRANCH
-
-	def _repo_zip_url(self):
-		return REPO_ZIP_URL_TEMPLATE.format(
-			owner=REPO_OWNER, repo=REPO_NAME, branch=self._active_branch()
-		)
-
-	def _extracted_folder_name(self):
-		return EXTRACTED_FOLDER_TEMPLATE.format(
-			repo=REPO_NAME, branch=self._active_branch()
-		)
-
-	def _zip_basename(self):
-		return self._extracted_folder_name() + '.zip'
 
 	# ------------------------------------------------------------------
 	# Inject inventory — used by Run() to decide between full install,
@@ -507,6 +460,13 @@ class Install:
 		td_root = TOUCHDESIGNER_LOCAL_PATH
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
 
+		# Idempotent layout normalization: always make sure the default
+		# family folder is named `Custom` on disk so that the in-TD path
+		# /ui/Plugins/Custom_families/Local/Custom matches its file. We
+		# run this BEFORE the early-return so installs that predate this
+		# logic still get their folder renamed on the next Run().
+		self._normalize_default_family_folder(final_path)
+
 		# Skip only when the install actually exists. The prefetch step in
 		# Install_window/execute1.py creates `Custom families/` with just
 		# Font/ and Images/ inside — checking only `isdir(final_path)` made
@@ -525,10 +485,7 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		zip_path = os.path.join(td_root, self._zip_basename())
-		zip_url = self._repo_zip_url()
-		debug('[Custom_families] downloading from branch \'{}\': {}'.format(
-			self._active_branch(), zip_url))
+		zip_path = os.path.join(td_root, 'CustomFamilies-main.zip')
 
 		# Download — urlretrieve is brittle on TD's embedded Python (no CA
 		# bundle configured by default → SSL verify fails on github.com,
@@ -538,7 +495,7 @@ class Install:
 		# via debug() so we don't mask the root cause behind a generic
 		# "offline" messagebox.
 		try:
-			self._download_zip(zip_url, zip_path)
+			self._download_zip(REPO_ZIP_URL, zip_path)
 		except Exception as exc:
 			debug('[Custom_families download] failed: {}: {}'.format(
 				type(exc).__name__, exc))
@@ -557,10 +514,10 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		# Rename CustomFamilies-<branch> → Custom families. If the destination
+		# Rename CustomFamilies-main → Custom families. If the destination
 		# already exists, drop it first (the just-downloaded copy is the
 		# authoritative one).
-		extracted_path = os.path.join(td_root, self._extracted_folder_name())
+		extracted_path = os.path.join(td_root, EXTRACTED_FOLDER_NAME)
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
 		try:
 			if os.path.isdir(final_path):
@@ -570,11 +527,28 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
+		# Apply the default-family rename to the freshly extracted layout too.
+		self._normalize_default_family_folder(final_path)
+
 		# Cleanup zip
 		try:
 			os.remove(zip_path)
 		except Exception:
 			pass
+
+	def _normalize_default_family_folder(self, install_root):
+		"""Ensure the default family lives at `Custom_families/Local/Custom/`
+		on disk. The repo ships it as `Custom_fam/`; the TD path uses `Custom`.
+		Aligning the disk name lets each DAT's par.file expression resolve to
+		a real file. Idempotent and safe to call before the install exists.
+		"""
+		try:
+			fam_src = os.path.join(install_root, 'Custom_families', 'Local', 'Custom_fam')
+			fam_dst = os.path.join(install_root, 'Custom_families', 'Local', 'Custom')
+			if os.path.isdir(fam_src) and not os.path.isdir(fam_dst):
+				os.rename(fam_src, fam_dst)
+		except Exception as exc:
+			debug('[Custom_families layout] Custom_fam rename skipped: {}'.format(exc))
 
 	def _download_zip(self, url, dest_path):
 		"""Stream a URL to disk via urlopen + chunked write.
