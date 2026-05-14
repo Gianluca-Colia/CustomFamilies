@@ -1,4 +1,4 @@
-"""
+﻿"""
 CHOP Execute DAT — Devepment mode auto-switch.
 
 Watches the `Developmentmode` channel exported from the

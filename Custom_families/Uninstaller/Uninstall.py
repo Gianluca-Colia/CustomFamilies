@@ -1,4 +1,4 @@
-UI_ROOT_PATH = '/ui'
+﻿UI_ROOT_PATH = '/ui'
 CUSTOM_FAMILIES_PATH = '/ui/Plugins/Custom_families'
 UNINSTALL_LOADBAR_PATH = '/ui/Plugins/Custom_families/Dialogs/Uninstall_window/Loadbar'
 MENU_OP_PATH = '/ui/dialogs/menu_op'
