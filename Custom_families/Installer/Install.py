@@ -493,7 +493,7 @@ class Install:
 		Final layout:
 		    {LOCALAPPDATA}/Derivative/TouchDesigner099/Custom families/
 		        ├── Custom_families/
-		        │   └── Local/Custom_fam/   (default family template)
+		        │   └── Embeded/Custom/   (default family template)
 		        ├── Font/  Images/  ui backup/
 		        ├── .tox/  docs/  README.md  LICENSE  .gitignore
 
@@ -509,13 +509,6 @@ class Install:
 		"""
 		td_root = TOUCHDESIGNER_LOCAL_PATH
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
-
-		# Idempotent layout normalization: always make sure the default
-		# family folder is named `Custom` on disk so that the in-TD path
-		# /ui/Plugins/Custom_families/Local/Custom matches its file. We
-		# run this BEFORE the early-return so installs that predate this
-		# logic still get their folder renamed on the next Run().
-		self._normalize_default_family_folder(final_path)
 
 		# Skip only when the install actually exists. The prefetch step in
 		# Install_window/execute1.py creates `Custom families/` with just
@@ -598,28 +591,11 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		# Apply the default-family rename to the freshly extracted layout too.
-		self._normalize_default_family_folder(final_path)
-
 		# Cleanup zip
 		try:
 			os.remove(zip_path)
 		except Exception:
 			pass
-
-	def _normalize_default_family_folder(self, install_root):
-		"""Ensure the default family lives at `Custom_families/Local/Custom/`
-		on disk. The repo ships it as `Custom_fam/`; the TD path uses `Custom`.
-		Aligning the disk name lets each DAT's par.file expression resolve to
-		a real file. Idempotent and safe to call before the install exists.
-		"""
-		try:
-			fam_src = os.path.join(install_root, 'Custom_families', 'Local', 'Custom_fam')
-			fam_dst = os.path.join(install_root, 'Custom_families', 'Local', 'Custom')
-			if os.path.isdir(fam_src) and not os.path.isdir(fam_dst):
-				os.rename(fam_src, fam_dst)
-		except Exception as exc:
-			debug('[Custom_families layout] Custom_fam rename skipped: {}'.format(exc))
 
 	def _download_zip(self, url, dest_path):
 		"""Stream a URL to disk via urlopen + chunked write.
