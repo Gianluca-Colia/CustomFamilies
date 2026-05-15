@@ -94,12 +94,14 @@ class Createfamily:
 		return root.op('Embeded/Custom')
 
 	def _next_unique_name(self, local, base_name, exclude=None):
-		"""Return base_name + smallest integer N>=1 such that '<base><N>' is
-		free among local's children. The bare base_name is reserved for the
-		original family — duplicates always carry a numeric suffix.
+		"""Return the first free name among '<root>', '<root>1', '<root>2', ...
+		in local's children. <root> is base_name with any trailing digits
+		stripped, so 'STV1' -> 'STV' and the search continues from 'STV1'
+		onward (never 'STV12').
 
-		If base_name already ends with digits we strip them so 'STV1' -> 'STV2',
-		not 'STV12'.
+		The bare <root> is used when free — so a fresh install with empty
+		Local yields 'Custom' (not 'Custom1'). Duplicates only get a numeric
+		suffix when the bare name is already taken.
 		"""
 		match = re.match(r'^(.*?)(\d+)$', str(base_name or ''))
 		root = match.group(1) if match else str(base_name or '')
@@ -117,6 +119,9 @@ class Createfamily:
 					pass
 		except Exception:
 			pass
+
+		if root not in existing:
+			return root
 
 		n = 1
 		while '{}{}'.format(root, n) in existing:
