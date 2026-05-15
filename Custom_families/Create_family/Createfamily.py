@@ -42,4 +42,11 @@ class Createfamily:
 		except Exception as exc:
 			debug('[Createfamily] opshortcut sync failed: {}'.format(exc))
 
+		# Template ships with cooking disabled; enable it on the clone so the
+		# new family starts running its install/setup logic.
+		try:
+			new_comp.allowCooking = True
+		except Exception as exc:
+			debug('[Createfamily] enable cooking failed: {}'.format(exc))
+
 		return new_comp
