@@ -1,71 +1,60 @@
 """
-Createfamily — extension on /ui/Plugins/Custom_families/Create_family.
+Extension classes enhance TouchDesigner components with python. An
+extension is accessed via ext.ExtensionClassName from any operator
+within the extended component. If the extension is promoted via its
+Promote Extension parameter, all its attributes with capitalized names
+can be accessed externally, e.g. op('yourComp').PromotedFunction().
 
-Clones the canonical family template (Embeded/Custom) into the Local
-container and wakes the copy up so its own install chain starts. The
-source family in Embeded is kept cooking-disabled so it never triggers
-itself; the copy in Local is the live instance the user works with.
-
-Triggered by a pulse on the Custom_families root COMP's `Createfamily`
-par: the par is exported via par1 (Parameter CHOP) → chopexec1.onOffToOn
-calls `parent().ext.Createfamily.Create()`.
+Help: search "Extensions" in wiki
 """
 
-EMBEDED_CUSTOM_PATH = '/ui/Plugins/Custom_families/Embeded/Custom'
-LOCAL_PATH = '/ui/Plugins/Custom_families/Local'
-
+from TDStoreTools import StorageManager
+import TDFunctions as TDF
 
 class Createfamily:
+	"""
+	Createfamily description
+	"""
 	def __init__(self, ownerComp):
+		# The component to which this extension is attached
 		self.ownerComp = ownerComp
 
-	def Create(self):
-		"""Copy Embeded/Custom into Local, set opshortcut, force-cook.
+		# properties
+		TDF.createProperty(self, 'MyProperty', value=0, dependable=True,
+						   readOnly=False)
 
-		Returns the freshly created COMP, or None on failure.
-		"""
-		source = op(EMBEDED_CUSTOM_PATH)
-		if source is None:
-			debug('[Createfamily] source missing: {}'.format(EMBEDED_CUSTOM_PATH))
-			return None
+		# attributes:
+		self.a = 0 # attribute
+		self.B = 1 # promoted attribute
 
-		local = op(LOCAL_PATH)
-		if local is None:
-			debug('[Createfamily] Local container missing: {}'.format(LOCAL_PATH))
-			return None
+		# stored items (persistent across saves and re-initialization):
+		storedItems = [
+			# Only 'name' is required...
+			{'name': 'StoredProperty', 'default': None, 'readOnly': False,
+			 						'property': True, 'dependable': True},
+		]
+		# Uncomment the line below to store StoredProperty. To clear stored
+		# 	items, use the Storage section of the Component Editor
+		
+		# self.stored = StorageManager(self, ownerComp, storedItems)
 
-		try:
-			copy = local.copy(source)
-		except Exception as exc:
-			debug('[Createfamily] copy failed: {}'.format(exc))
-			return None
+	def myFunction(self, v):
+		debug(v)
 
-		if copy is None:
-			return None
+	def PromotedFunction(self, v):
+		debug(v)
 
-		# Order matters. The family's auto-install (Auto_install_execute)
-		# fires as soon as the COMP starts cooking and reads par.opshortcut
-		# to determine its own family_name. Set opshortcut FIRST while the
-		# copy is still cooking-disabled, then wake it up.
-		try:
-			if hasattr(copy.par, 'opshortcut'):
-				copy.par.opshortcut = copy.name
-		except Exception:
-			pass
+	# def onDestroyTD(self):
+	# 	"""
+	# 	Called when the extension or component is being deleted. Use this
+	# 	instead of __del__ for cleanup tasks.
+	# 	"""
+	# 	debug("onDestroyTD called")
 
-		# Wake the copy: the source in Embeded is cooking-disabled, so the
-		# copy inherits allowCooking=False and would never start its install
-		# chain otherwise.
-		try:
-			copy.allowCooking = True
-		except Exception:
-			pass
-
-		# Force-cook so Auto_install_execute / onCreate inside the family
-		# fires now instead of waiting for an unrelated dependency.
-		try:
-			copy.cook(force=True)
-		except Exception:
-			pass
-
-		return copy
+	# def onInitTD(self):
+	# 	"""
+	# 	Called after the extension is fully initialized and attached to the 
+	# 	component. Use this instead of __init__ for tasks that require other
+	# 	components' extensions to be available, or that use promoted members.
+	# 	"""
+	# 	debug("onInitTD called")
