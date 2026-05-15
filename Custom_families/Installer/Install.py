@@ -435,6 +435,7 @@ class Install:
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
 			('Enable Local',               lambda c: self._enable_local_cook(c)),
 			('Realign scripts',            lambda c: self.RealignScripts()),
+			('Spawn first family',         lambda c: self._pulse_create_family(c)),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
@@ -853,6 +854,12 @@ class Install:
 			return
 
 		local_comp.allowCooking = True
+
+	def _pulse_create_family(self, custom_families_comp):
+		par = getattr(custom_families_comp.par, 'Createfamily', None)
+		if par is None:
+			return
+		par.pulse()
 
 	def _set_bottom_pane_network_owner(self):
 		bottom_pane = self._get_bottom_pane()
