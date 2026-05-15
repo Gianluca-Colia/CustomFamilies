@@ -32,6 +32,26 @@ op('Custom_families').ext.Install.Run()
 op('Custom_families').ext.Uninstall.Run()
 ```
 
+### Crea una nuova famiglia
+
+| Funzione | Cosa fa |
+|---|---|
+| **`Createfamily.Create()`** | Spawna una nuova famiglia dentro `Local`. Clona il template `Embeded/Custom`, allinea `par.opshortcut` al nome assegnato da TD (`Custom`, `Custom1`, …) e attiva il cooking sul nuovo COMP. |
+
+Si può chiamare in due modi equivalenti:
+
+```python
+# Via parametro (stessa via che usa il bottone Create_button della UI)
+op('Custom_families').par.Createfamily.pulse()
+
+# Via estensione (utile da script che vogliono il riferimento al nuovo COMP)
+new_fam = op('Custom_families').op('Create_family').ext.Createfamily.Create()
+```
+
+`Create()` ritorna il COMP appena creato (o `None` in caso di errore).
+Lo step finale dell'`Install.Run()` chiama già un pulse di `Createfamily`,
+quindi a fresh install corrisponde sempre una prima famiglia pronta in `Local`.
+
 ---
 
 ## 2. Singola famiglia — `Custom_fam`
@@ -89,6 +109,10 @@ op('MyFamily').ext.RenameEXT.RenameFamily('NuovoNome')
 # Plugin completo
 op('Custom_families').ext.Install.Run()
 op('Custom_families').ext.Uninstall.Run()
+
+# Crea una nuova famiglia
+op('Custom_families').par.Createfamily.pulse()
+new_fam = op('Custom_families').op('Create_family').ext.Createfamily.Create()
 
 # Singola famiglia
 fam = op('MyFamily')
