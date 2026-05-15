@@ -3665,6 +3665,25 @@ class GenericInstallerEXT:
 			self._trace("Prepared bookmark visuals (constant color) for '{}'".format(self.family_name))
 		return updated
 
+	def _refresh_family_name_from_owner(self):
+		"""Pull the current opshortcut/name off the owner COMP into self.family_name.
+		Counter-acts the stale-cache scenario where a long-lived InstallerEXT
+		instance (cached on ComponentEXT) keeps the pre-rename family name and
+		downstream lookups by name (button_<old>, colors_table row, ...) miss.
+		"""
+		try:
+			cur = self._sanitize_family_name(self.ownerComp.par.opshortcut.eval())
+		except Exception:
+			cur = ''
+		if not cur:
+			try:
+				cur = self._sanitize_family_name(self.ownerComp.name)
+			except Exception:
+				cur = ''
+		if cur and cur != self.family_name:
+			self.family_name = cur
+		return self.family_name
+
 	def _sync_button_color(self, color=None):
 		"""Update bookmark button color constants when the family color changes.
 
@@ -3674,6 +3693,9 @@ class GenericInstallerEXT:
 		bookmark_bar = self._ui('bookmark_bar')
 		if bookmark_bar is None:
 			return False
+		# Cached bridge may carry a pre-rename family_name — refresh before lookup
+		# so we search for the current button_<name> instead of the stale one.
+		self._refresh_family_name_from_owner()
 		toggle = self._find_child_by_names(bookmark_bar, self._bookmark_toggle_names())
 		if toggle is None:
 			return False
@@ -5582,6 +5604,10 @@ class GenericInstallerEXT:
 		if not colors_table:
 			self._trace("Colors table missing for '{}'".format(self.family_name))
 			return
+
+		# Same stale-cache concern as _sync_button_color: the row we want to
+		# update is keyed by family_name, so refresh it from the owner first.
+		self._refresh_family_name_from_owner()
 
 		try:
 			family_exists = False
