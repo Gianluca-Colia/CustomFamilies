@@ -157,6 +157,66 @@ class GenericRenameEXT:
 			self._trace("Direct menu_op cleanup removed={} for '{}'".format(removed, family_name))
 		return removed
 
+	def _rename_bookmark_toggle_in_place(self, old_name, new_name):
+		"""Rename the live bookmark toggle from button_<old> to button_<new>
+		and refresh its stored owner metadata. Paired with preserve_button=True
+		in RemoveFamily/_force_cleanup_bookmark_family so _install_toggle later
+		reuses the same physical toggle instead of copying a fresh one.
+		"""
+		old_name = self._sanitize_family_name(old_name)
+		new_name = self._sanitize_family_name(new_name)
+		if not old_name or not new_name or old_name == new_name:
+			return False
+
+		try:
+			bookmark_bar = op('/ui/panes/panebar/pane1/Local_bar')
+		except Exception:
+			bookmark_bar = None
+		if bookmark_bar is None:
+			return False
+
+		target_name = 'button_{}'.format(new_name)
+		toggle = None
+		for variant in (
+			'button_{}'.format(old_name),
+			'{}_toggle'.format(old_name),
+			'{}_button'.format(old_name),
+		):
+			try:
+				candidate = bookmark_bar.op(variant)
+			except Exception:
+				candidate = None
+			if candidate is not None:
+				toggle = candidate
+				break
+
+		if toggle is None:
+			return False
+
+		try:
+			if toggle.name != target_name:
+				toggle.name = target_name
+		except Exception as e:
+			self._trace("Toggle in-place rename failed '{}'->'{}': {}".format(
+				old_name, new_name, e))
+			return False
+
+		try:
+			toggle.store('cf_family_name', new_name)
+		except Exception:
+			pass
+		try:
+			toggle.store('cf_owner_path', self.ownerComp.path)
+		except Exception:
+			pass
+		try:
+			toggle.store('family_owner_path', self.ownerComp.path)
+		except Exception:
+			pass
+
+		self._trace("Renamed bookmark toggle in-place to '{}'".format(target_name))
+		return True
+
 	def _force_cleanup_bookmark_family(self, family_name, preserve_button=False):
 		family_name = self._sanitize_family_name(family_name)
 		if not family_name:
@@ -374,6 +434,15 @@ class GenericRenameEXT:
 					component_ext.UpdateGlobalShortcut()
 				except Exception as e:
 					self._trace("UpdateGlobalShortcut failed '{}': {}".format(new_name, e))
+
+			# Pre-rename the preserved bookmark toggle from button_<old> to
+			# button_<new> so _install_toggle finds it by its canonical name
+			# and reuses it. Without this, _install_toggle would search for
+			# button_<new> (not found, since the live toggle still bears the
+			# old name) and copy a fresh toggle on top — producing two visible
+			# buttons for the same family.
+			if not old_name_has_sibling:
+				self._rename_bookmark_toggle_in_place(old_name, new_name)
 
 			if was_installed and installer is not None:
 				# Second cleanup pass for the old name's side artifacts (watcher,
