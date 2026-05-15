@@ -29,7 +29,17 @@ class Createfamily:
 			return None
 
 		try:
-			return local.copy(template)
+			new_comp = local.copy(template)
 		except Exception as exc:
 			debug('[Createfamily] copy failed: {}'.format(exc))
 			return None
+
+		# Align opshortcut with the (possibly auto-incremented) name TD just
+		# assigned, so each family in Local resolves to a unique global op.
+		try:
+			if hasattr(new_comp.par, 'opshortcut'):
+				new_comp.par.opshortcut = new_comp.name
+		except Exception as exc:
+			debug('[Createfamily] opshortcut sync failed: {}'.format(exc))
+
+		return new_comp
