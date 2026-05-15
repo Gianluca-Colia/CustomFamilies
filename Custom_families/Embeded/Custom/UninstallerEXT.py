@@ -694,14 +694,18 @@ class GenericUninstallerEXT:
 
 		return self._fallback_cleanup(family_name=family_name, destroy_toggle=False)
 
-	def RemoveFamily(self, family_name=None):
+	def RemoveFamily(self, family_name=None, preserve_button=False):
 		family_name = self._sanitize_family_name(family_name or self._get_family_name())
 		if not family_name:
 			return False
 
 		# Destroy the button before anything else so rename can never leave a
 		# stale button behind if the deeper cleanup fails to find it by name.
-		self._destroy_button_first(family_name)
+		# preserve_button=True is set by RenameEXT so the bookmark toggle stays
+		# alive across the rename and _install_toggle can rename it in-place
+		# (avoiding the disappear/reappear flicker the user sees on the bookmark).
+		if not preserve_button:
+			self._destroy_button_first(family_name)
 
 		self.family_name = family_name
 		installer = self._get_installer_delegate()
@@ -712,7 +716,7 @@ class GenericUninstallerEXT:
 			except Exception:
 				pass
 			try:
-				self._perform_ui_cleanup(installer, family_name=family_name, destroy_toggle=True)
+				self._perform_ui_cleanup(installer, family_name=family_name, destroy_toggle=not preserve_button)
 				self._destroy_menu_op_first(family_name)
 				self._cleanup_external_delete_helpers(installer, family_name)
 				try:
@@ -734,7 +738,7 @@ class GenericUninstallerEXT:
 			except Exception as e:
 				self._trace("RemoveFamily delegate failed for '{}': {}".format(family_name, e), showMessage=True)
 
-		result = self._fallback_cleanup(family_name=family_name, destroy_toggle=True)
+		result = self._fallback_cleanup(family_name=family_name, destroy_toggle=not preserve_button)
 		self._destroy_menu_op_first(family_name)
 		try:
 			if hasattr(self.ownerComp, 'store'):

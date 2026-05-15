@@ -157,7 +157,7 @@ class GenericRenameEXT:
 			self._trace("Direct menu_op cleanup removed={} for '{}'".format(removed, family_name))
 		return removed
 
-	def _force_cleanup_bookmark_family(self, family_name):
+	def _force_cleanup_bookmark_family(self, family_name, preserve_button=False):
 		family_name = self._sanitize_family_name(family_name)
 		if not family_name:
 			return 0
@@ -170,15 +170,24 @@ class GenericRenameEXT:
 		if bookmark_bar is None:
 			return 0
 
-		candidate_names = [
+		# When preserve_button=True (rename path), the visible bookmark toggle
+		# is intentionally left alive so _install_toggle can rename it in-place
+		# under the new family name. We still clean the side artifacts (watcher,
+		# delete_execute) tied to the old name.
+		button_variants = (
 			'button_{}'.format(family_name),
 			'{}_button'.format(family_name),
 			'{}_toggle'.format(family_name),
+		)
+		other_variants = (
 			'watcher_{}'.format(family_name),
 			'{}_watcher'.format(family_name),
 			'delete_execute_{}'.format(family_name),
 			'{}_delete_execute'.format(family_name),
-		]
+		)
+		candidate_names = list(other_variants)
+		if not preserve_button:
+			candidate_names = list(button_variants) + candidate_names
 
 		removed = 0
 		for name in candidate_names:
@@ -323,24 +332,21 @@ class GenericRenameEXT:
 		old_name_has_sibling = self._has_sibling_family_owner(old_name)
 
 		try:
-			# Destroy the old button unconditionally before rename so it can never
-			# survive as a broken remnant if RemoveFamily's lookup fails.
-			if not old_name_has_sibling:
-				if uninstaller is not None and hasattr(uninstaller, '_destroy_button_first'):
-					try:
-						uninstaller._destroy_button_first(old_name)
-					except Exception as e:
-						self._trace("_destroy_button_first failed for '{}': {}".format(old_name, e))
-				else:
-					self._force_cleanup_bookmark_family(old_name)
-
+			# Rename path: preserve the visible bookmark toggle so _install_toggle
+			# can rename it in-place. We skip _destroy_button_first here and the
+			# direct button-variant cleanups below (preserve_button=True), so the
+			# toggle never disappears between old and new name.
 			if was_installed and uninstaller is not None and not old_name_has_sibling:
 				try:
-					uninstaller.RemoveFamily(family_name=old_name)
+					try:
+						uninstaller.RemoveFamily(family_name=old_name, preserve_button=True)
+					except TypeError:
+						# Older RemoveFamily signature without preserve_button kwarg.
+						uninstaller.RemoveFamily(family_name=old_name)
 				except Exception as e:
 					self._trace("RemoveFamily failed during rename '{}': {}".format(old_name, e))
 			if not old_name_has_sibling:
-				self._force_cleanup_bookmark_family(old_name)
+				self._force_cleanup_bookmark_family(old_name, preserve_button=True)
 				self._force_cleanup_menu_op_family(old_name, uninstaller=uninstaller)
 
 			try:
@@ -370,17 +376,12 @@ class GenericRenameEXT:
 					self._trace("UpdateGlobalShortcut failed '{}': {}".format(new_name, e))
 
 			if was_installed and installer is not None:
-				# After the owner rename, run one more direct cleanup pass for the old
-				# family before reinstalling the new one. This narrows the visual gap on
-				# the first rename (Custom -> C1), where the old bookmark tag could stay
-				# around for a couple of frames while the new one was already installed.
+				# Second cleanup pass for the old name's side artifacts (watcher,
+				# delete_execute, menu_op). We keep preserve_button=True here too
+				# so the bookmark toggle survives all the way to _install_toggle
+				# and gets renamed in-place.
 				if not old_name_has_sibling:
-					if uninstaller is not None and hasattr(uninstaller, '_destroy_button_first'):
-						try:
-							uninstaller._destroy_button_first(old_name)
-						except Exception as e:
-							self._trace("Second _destroy_button_first failed for '{}': {}".format(old_name, e))
-					self._force_cleanup_bookmark_family(old_name)
+					self._force_cleanup_bookmark_family(old_name, preserve_button=True)
 					self._force_cleanup_menu_op_family(old_name, uninstaller=uninstaller)
 
 				if uninstaller is not None:
@@ -404,11 +405,14 @@ class GenericRenameEXT:
 							pass
 					if result and uninstaller is not None and not old_name_has_sibling:
 						try:
-							uninstaller.RemoveFamily(family_name=old_name)
+							try:
+								uninstaller.RemoveFamily(family_name=old_name, preserve_button=True)
+							except TypeError:
+								uninstaller.RemoveFamily(family_name=old_name)
 						except Exception as e:
 							self._trace("Post-install cleanup failed for old family '{}': {}".format(old_name, e))
 					if result and not old_name_has_sibling:
-						self._force_cleanup_bookmark_family(old_name)
+						self._force_cleanup_bookmark_family(old_name, preserve_button=True)
 						self._force_cleanup_menu_op_family(old_name, uninstaller=uninstaller)
 					return bool(result)
 				except TypeError:
