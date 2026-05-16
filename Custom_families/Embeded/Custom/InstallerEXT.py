@@ -1249,11 +1249,16 @@ class GenericInstallerEXT:
 		return plugins_root
 
 	def _is_inside_custom_families_base(self):
+		# Canonical path match first (cheap).
 		owner_path = str(self.ownerComp.path)
-		return (
-			owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or
-			owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/')
-		)
+		if owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or \
+			owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/'):
+			return True
+		# Ancestry match: family is sitting inside a Custom_families COMP that
+		# lives somewhere else (e.g. a freshly-dragged .tox at /project1/...).
+		# In that case the plugin's own install dialog will handle install;
+		# the family must NOT bootstrap a fresh download on top.
+		return self._is_component_inside_custom_families(self.ownerComp)
 
 	def _is_inside_custom_families_local(self):
 		owner_path = str(self.ownerComp.path)
