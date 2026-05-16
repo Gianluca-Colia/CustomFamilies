@@ -14,6 +14,7 @@
   [![License: MIT](https://img.shields.io/github/license/Gianluca-Colia/CustomFamilies?style=flat-square)](LICENSE)
   [![Issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/issues)
   [![Stars](https://img.shields.io/github/stars/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/stargazers)
+  [![Downloads](https://img.shields.io/github/downloads/Gianluca-Colia/CustomFamilies/total?style=flat-square&label=downloads)](https://github.com/Gianluca-Colia/CustomFamilies/releases)
   [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/main)
 </div>
 
