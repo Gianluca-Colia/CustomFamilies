@@ -13,6 +13,7 @@ PopMenu info keys:
 """
 
 Uninstall_window = '/ui/Plugins/Custom_families/Dialogs/Uninstall_window'
+Custom_families_root = '/ui/Plugins/Custom_families'
 
 def onSelect(info):
 	"""
@@ -41,6 +42,14 @@ def onSelect(info):
 		except Exception:
 			pass
 		run("args[0].par.Winopen.pulse()", window, delayFrames=15)
+	elif info['item'] == 'Preferences':
+		root = op(Custom_families_root)
+		if root is None:
+			return
+		par = getattr(root.par, 'Preferences', None)
+		if par is None:
+			return
+		par.pulse()
 
 def onRollover(info):
 	"""

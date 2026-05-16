@@ -298,6 +298,68 @@ def _update_button_metadata(button, owner, text_value):
 	return True
 
 
+def _rename_via_bridge(owner, new_name):
+	"""Drive the rename through ComponentEXT/RenameEXT so opshortcut, the
+	global op shortcut, and the installed UI (bookmark/menu_op/button) all
+	get refreshed atomically. Falls back to a direct owner.name assignment
+	only when no bridge is available."""
+	if owner is None:
+		return False
+
+	# Preferred path: ComponentEXT._OnRenameFamilyDialog mirrors the menu
+	# Rename callback exactly, including sanitize + uninstall + reinstall.
+	for attr_name in ('ComponentEXT', 'componentExt'):
+		try:
+			component_ext = getattr(owner, attr_name, None)
+		except Exception:
+			component_ext = None
+		if component_ext is None:
+			try:
+				ext_namespace = getattr(owner, 'ext', None)
+				component_ext = getattr(ext_namespace, attr_name, None) if ext_namespace is not None else None
+			except Exception:
+				component_ext = None
+		if component_ext is not None and hasattr(component_ext, '_OnRenameFamilyDialog'):
+			try:
+				return bool(component_ext._OnRenameFamilyDialog({
+					'button': 'Rename',
+					'enteredText': new_name,
+				}))
+			except Exception:
+				pass
+
+	# Fallback: talk to the rename bridge directly.
+	for attr_name in ('Rename', 'RenameEXT', 'rename', 'renameExt', 'GenericRenameEXT'):
+		try:
+			rename_ext = getattr(owner, attr_name, None)
+		except Exception:
+			rename_ext = None
+		if rename_ext is None:
+			try:
+				ext_namespace = getattr(owner, 'ext', None)
+				rename_ext = getattr(ext_namespace, attr_name, None) if ext_namespace is not None else None
+			except Exception:
+				rename_ext = None
+		if rename_ext is not None and hasattr(rename_ext, 'RenameFamily'):
+			try:
+				return bool(rename_ext.RenameFamily(new_name, show_message=False))
+			except TypeError:
+				try:
+					return bool(rename_ext.RenameFamily(new_name))
+				except Exception:
+					pass
+			except Exception:
+				pass
+
+	# Last-resort: rename the COMP only (legacy behavior, leaves opshortcut
+	# and the installed UI out of sync — but better than failing silently).
+	try:
+		owner.name = new_name
+		return True
+	except Exception:
+		return False
+
+
 def _rename_owner_from_text(comp: textCOMP, value: str):
 	button = _button_comp(comp)
 	owner = _owner_from_button(button)
@@ -308,12 +370,10 @@ def _rename_owner_from_text(comp: textCOMP, value: str):
 	if not new_name:
 		return False
 
-	try:
-		owner.name = new_name
-	except Exception:
+	if not _rename_via_bridge(owner, new_name):
 		return False
 
-	_update_button_metadata(button, owner, new_name)
+	_update_button_metadata(button, owner, str(owner.name))
 
 	try:
 		if hasattr(comp.par, 'text'):

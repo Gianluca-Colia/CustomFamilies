@@ -856,6 +856,16 @@ class Install:
 		local_comp.allowCooking = True
 
 	def _pulse_create_family(self, custom_families_comp):
+		# Skip when Local already has at least one family — the .tox may ship
+		# with a pre-populated Custom and a second pulse would spawn Custom1
+		# on top of it.
+		local_comp = custom_families_comp.op(LOCAL_NAME)
+		if local_comp is not None:
+			try:
+				if any(getattr(c, 'isCOMP', False) for c in local_comp.children):
+					return
+			except Exception:
+				pass
 		par = getattr(custom_families_comp.par, 'Createfamily', None)
 		if par is None:
 			return
