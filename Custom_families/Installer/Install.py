@@ -289,6 +289,13 @@ class Install:
 		doesn't exist on disk yet TD just shows the DAT empty / warns
 		in textport; the embedded text in the .tox keeps running until
 		the install pulls the .py.
+
+		Family-internal scripts (Local/<fam>/* and Server/<fam>/*) are
+		REWRITTEN to point at the canonical template under
+		Custom_families/Embeded/Custom/. Otherwise every family would
+		keep its own per-family copy of the framework scripts on disk
+		and patches to the canonical template would never propagate to
+		existing families.
 		"""
 		target = op(dat_path)
 		if target is None or not target.pars('file'):
@@ -298,6 +305,20 @@ class Install:
 		rel = dat_path[len(PLUGINS_PREFIX):]
 		if not rel:
 			return False
+
+		# Detect family-internal scripts and redirect to canonical.
+		# rel shape: 'Custom_families/<container>/<family>/<sub...>'
+		# where container is Local or Server. Plugin-level scripts (e.g.
+		# 'Custom_families/Installer/chopexec1') don't match and pass through
+		# unchanged.
+		parts = rel.split('/')
+		if (
+			len(parts) >= 4
+			and parts[0] == 'Custom_families'
+			and parts[1] in ('Local', 'Server')
+		):
+			family_relative = '/'.join(parts[3:])
+			rel = 'Custom_families/Embeded/Custom/' + family_relative
 
 		rel_disk = '/Custom families/' + rel + '.py'
 		new_expr = 'app.preferencesFolder + ' + repr(rel_disk)
