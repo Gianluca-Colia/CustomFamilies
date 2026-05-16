@@ -6264,25 +6264,64 @@ class GenericInstallerEXT:
 			self._trace("Compatible table missing for '{}'".format(self.family_name))
 			return
 
+		# TD's OP Create Dialog uses this table to decide which operators show
+		# in each tab. A blank cell at [menu_type, op_type] makes the dialog
+		# think the pairing is "allowed" (no explicit incompatibility), which
+		# breaks the operator list once a custom family is added. The shipped
+		# 'Custom' row/col is filled entirely with 'x' to mark a custom family
+		# as incompatible with every built-in family — and with any other
+		# custom family. Mirror that convention here for every new family so
+		# adding HOP doesn't silently leave empty cells on the HOP row, on the
+		# HOP column, and on the Custom×HOP / HOP×Custom intersections.
 		try:
-			pops_installed = bool(comp_table.cols('POP'))
-
 			if not comp_table.rows(self.family_name):
-				row_entry = [self.family_name]
-				for index in range(1, comp_table.numCols):
-					col_type = comp_table[0, index].val
-					row_entry.append('x' if col_type == self.family_name or (col_type == 'POP' and pops_installed) else '')
+				row_entry = [self.family_name] + ['x'] * (comp_table.numCols - 1)
 				comp_table.appendRow(row_entry)
 
 			if not comp_table.cols(self.family_name):
-				col_entry = [self.family_name]
-				for row in comp_table.rows()[1:]:
-					row_type = row[0].val
-					col_entry.append('x' if row_type == self.family_name or (row_type == 'POP' and pops_installed) else '')
+				col_entry = [self.family_name] + ['x'] * (comp_table.numRows - 1)
 				comp_table.appendCol(col_entry)
+
+			# Backfill any cell on the new row / new column that other previous
+			# installs (or the legacy buggy code) left empty. Idempotent: only
+			# touches cells that are currently empty so manually-tuned
+			# compatibility entries are preserved.
+			self._backfill_compatible_blanks(comp_table, self.family_name)
+
 			self._trace("Updated compatible table for '{}'".format(self.family_name))
 		except Exception as e:
 			debug("Compatible table update failed: {}".format(e))
+
+	def _backfill_compatible_blanks(self, comp_table, family_name):
+		"""Fill empty cells on family_name's row/col with 'x' so the OP Create
+		Dialog doesn't treat them as a valid compatibility entry.
+		"""
+		family_name = self._sanitize_family_name(family_name)
+		if not family_name:
+			return
+
+		try:
+			row_cells = comp_table.row(family_name)
+		except Exception:
+			row_cells = None
+		try:
+			col_cells = comp_table.col(family_name)
+		except Exception:
+			col_cells = None
+
+		def _fill(cells):
+			if not cells:
+				return
+			# Skip index 0 (the header cell carrying the family name itself).
+			for cell in cells[1:]:
+				try:
+					if str(cell.val) == '':
+						cell.val = 'x'
+				except Exception:
+					pass
+
+		_fill(row_cells)
+		_fill(col_cells)
 
 	def _remove_color_row(self, menu_op, family_name=None):
 		family_name = family_name or self.family_name
