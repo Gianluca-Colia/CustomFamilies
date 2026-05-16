@@ -5,6 +5,9 @@ Installer runtime.
 import time
 import re
 import os
+import ssl
+import urllib.request
+import urllib.error
 
 
 class GenericInstallerEXT:
@@ -32,7 +35,14 @@ class GenericInstallerEXT:
 	LOCAL_BAR_PATH = '/ui/panes/panebar/pane1/Local_bar'
 	SERVER_BAR_PATH = '/ui/panes/panebar/pane1/Server_bar'
 	EMBEDDED_ROOT_NAME = 'Embeded'
-	EMBEDDED_CUSTOM_FAMILIES_PATH = 'Embeded/Custom_families'
+	# Bootstrap-from-repo: when a family is dropped into a project that does
+	# NOT have Custom_families installed (no /ui/Plugins/Custom_families and
+	# no Local container), the family downloads the plugin .tox from this URL
+	# and loads it into TD. We point at the dev raw .tox during alpha; switch
+	# to a release asset (releases/download/<tag>/Custom_families.tox) once
+	# we leave alpha to get versioning + download counter on each bootstrap.
+	BOOTSTRAP_TOX_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox'
+	BOOTSTRAP_TOX_TEMP_NAME = 'bootstrap_Custom_families.tox'
 	CUSTOM_FAMILIES_INSTALL_COMPLETE_KEY = 'cf_install_complete'
 	CUSTOM_OPERATOR_EXTENSION_SIGNATURES = (
 		'Extension classes enhance TouchDesigner components with python',
@@ -1310,7 +1320,12 @@ class GenericInstallerEXT:
 		if cf_root is not None and cf_local is not None:
 			return self._move_family_to_local(cf_local)
 
-		host = self._install_embedded_host()
+		# Case C-special: family dropped into a project where the plugin
+		# isn't installed (no /ui/Plugins/Custom_families, no Local). Pull
+		# the plugin .tox straight from GitHub and load it under /ui/Plugins,
+		# then wait for its install to complete before moving the family
+		# into the now-existing Local container.
+		host = self._install_host_from_repo()
 		if host is None:
 			return False
 
@@ -1388,27 +1403,63 @@ class GenericInstallerEXT:
 		))
 		return True
 
-	def _install_embedded_host(self):
+	def _install_host_from_repo(self):
+		"""Bootstrap Custom_families when it isn't installed yet by downloading
+		the plugin .tox from GitHub and loading it under /ui/Plugins.
+
+		Replaces the legacy embedded-host path (which required every family
+		to ship a full copy of the plugin under its Embeded/ folder). The
+		family no longer needs the embedded payload — only network access
+		on the very first install. Subsequent family imports skip this
+		path because plugins_root.op(Custom_families) already exists.
+		"""
 		plugins_root = self._get_or_create_plugins_root()
 		if plugins_root is None:
 			self._trace("Plugins root could not be created under /ui")
 			return None
 
-		embedded_manager = self.ownerComp.op(self.EMBEDDED_CUSTOM_FAMILIES_PATH)
-		if embedded_manager is None:
-			self._trace("Embedded Custom_families manager missing under '{}/{}'".format(
-				self.ownerComp.path,
-				self.EMBEDDED_CUSTOM_FAMILIES_PATH
-			))
-			return None
-
 		host = plugins_root.op(self.CUSTOM_FAMILIES_MANAGER_NAME)
 		if host is None:
-			self._show_message('Custom families host installation started')
-			host = plugins_root.copy(embedded_manager, name=self.CUSTOM_FAMILIES_MANAGER_NAME, includeDocked=True)
-			if host is None:
-				self._trace("Failed to copy embedded Custom_families into '{}'".format(plugins_root.path))
+			tox_path = os.path.join(
+				app.preferencesFolder,
+				'Custom families',
+				self.BOOTSTRAP_TOX_TEMP_NAME,
+			)
+			try:
+				os.makedirs(os.path.dirname(tox_path), exist_ok=True)
+			except Exception:
+				pass
+
+			self._show_message('Downloading Custom_families plugin...')
+			try:
+				self._download_bootstrap_tox(self.BOOTSTRAP_TOX_URL, tox_path)
+			except Exception as exc:
+				self._trace("Bootstrap download failed: {}: {}".format(type(exc).__name__, exc))
+				self._show_message('Custom_families download failed — check your internet connection.')
 				return None
+
+			self._show_message('Custom families host installation started')
+			try:
+				host = plugins_root.loadTox(tox_path)
+			except Exception as exc:
+				self._trace("loadTox failed for '{}': {}".format(tox_path, exc))
+				self._show_message('Failed to load Custom_families.tox.')
+				return None
+
+			if host is None:
+				self._trace("loadTox returned None for '{}'".format(tox_path))
+				return None
+
+			try:
+				if host.name != self.CUSTOM_FAMILIES_MANAGER_NAME:
+					host.name = self.CUSTOM_FAMILIES_MANAGER_NAME
+			except Exception:
+				pass
+
+			try:
+				os.remove(tox_path)
+			except Exception:
+				pass
 
 		host.allowCooking = True
 		# Do NOT set host.par.opshortcut here. We resolve Custom_families by
@@ -1444,8 +1495,41 @@ class GenericInstallerEXT:
 		except Exception:
 			pass
 
-		self._trace("Embedded Custom_families host installed at '{}', state reset and Install pulse fired".format(host.path))
+		self._trace("Custom_families host installed at '{}', state reset and Install pulse fired".format(host.path))
 		return host
+
+	def _download_bootstrap_tox(self, url, dest_path):
+		"""Stream the Custom_families plugin .tox from GitHub to disk.
+
+		Mirrors the SSL/User-Agent handling in Installer/Install._download_zip:
+		TD's embedded Python ships without a CA bundle, so the default verified
+		context fails on github.com. We try verified first and fall back to an
+		unverified context only on SSL errors. The User-Agent header avoids
+		GitHub 403s on 'unknown client'.
+		"""
+		req = urllib.request.Request(
+			url,
+			headers={'User-Agent': 'Custom_families-family-bootstrap'},
+		)
+		try:
+			response = urllib.request.urlopen(req, timeout=30)
+		except (ssl.SSLError, urllib.error.URLError) as ssl_exc:
+			is_ssl = isinstance(ssl_exc, ssl.SSLError) or (
+				isinstance(ssl_exc, urllib.error.URLError)
+				and isinstance(ssl_exc.reason, ssl.SSLError)
+			)
+			if not is_ssl:
+				raise
+			self._trace("Bootstrap SSL verification failed, retrying unverified: {}".format(ssl_exc))
+			ctx = ssl._create_unverified_context()
+			response = urllib.request.urlopen(req, timeout=30, context=ctx)
+
+		with response, open(dest_path, 'wb') as out:
+			while True:
+				chunk = response.read(64 * 1024)
+				if not chunk:
+					break
+				out.write(chunk)
 
 	def _schedule_wait_for_host_then_move(self, host, delay_frames=20):
 		run(
