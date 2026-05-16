@@ -3440,6 +3440,13 @@ class GenericInstallerEXT:
 			self._trace("Install delete watcher failed for '{}': {}".format(self.family_name, e))
 			return False
 
+		# Ensure cook is enabled immediately so callbacks fire as soon as
+		# par.file / target wiring lands below.
+		try:
+			watcher.allowCooking = True
+		except Exception:
+			pass
+
 		script_path = self._get_parameter_script_path('Delete_op_execute.py')
 
 		try:
@@ -5588,6 +5595,14 @@ class GenericInstallerEXT:
 			else:
 				family_insert = existing_insert
 				self._mark_managed_family_insert(family_insert, family_name=self.family_name)
+
+			# Ensure cook is enabled right after the copy/create so the insert
+			# starts feeding the menu_op pipeline immediately.
+			try:
+				if family_insert is not None:
+					family_insert.allowCooking = True
+			except Exception:
+				pass
 			# For baseCOMP wrapper (Insert_Custom), configure the inner insertDAT;
 			# for a bare insertDAT, configure directly.
 			# Try both cases since the inner DAT may be named 'Insert_Custom' or 'insert_Custom'.
@@ -5784,6 +5799,12 @@ class GenericInstallerEXT:
 				inject_op = node_table.copy(template_inject, name=inject_name, includeDocked=True)
 			else:
 				inject_op = existing_inject
+			# Ensure cook is enabled before wiring/templating so the inject
+			# pipeline produces output as soon as it lands in node_table.
+			try:
+				inject_op.allowCooking = True
+			except Exception:
+				pass
 			self._prepare_inject_template_instance(inject_op)
 			tail_inject = None
 			try:
@@ -6188,6 +6209,12 @@ class GenericInstallerEXT:
 				panel_execute = menu_op.copy(template, name=panel_execute_name)
 			else:
 				panel_execute = existing_panel_execute
+			# Ensure cook is enabled right after the copy so the panel execute
+			# starts intercepting events from menu_op immediately.
+			try:
+				panel_execute.allowCooking = True
+			except Exception:
+				pass
 			try:
 				panel_execute.store('cf_managed_panel_execute', True)
 				panel_execute.store('cf_managed_family_name', self._sanitize_family_name(self.family_name))
