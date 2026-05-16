@@ -42,6 +42,7 @@ PLUGINS_PREFIX = '/ui/Plugins/'
 INSTALL_DAT_NAME = 'Install'
 RUNTIME_NAME = 'Runtime'
 LOCAL_NAME = 'Local'
+SERVER_NAME = 'Server'
 # Important: in this layout the visible toolbar is produced by shrinking the
 # top pane by writing the split ratio on the bottom pane. This looks inverted,
 # but it is the stable behavior we observed in TD for this top/bottom split.
@@ -434,6 +435,7 @@ class Install:
 			('Wire Page_number',           lambda c: self._wire_page_number()),
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
 			('Enable Local',               lambda c: self._enable_local_cook(c)),
+			('Enable Server',              lambda c: self._enable_server_cook(c)),
 			('Realign scripts',            lambda c: self.RealignScripts()),
 			('Spawn first family',         lambda c: self._pulse_create_family(c)),
 		]
@@ -854,6 +856,15 @@ class Install:
 			return
 
 		local_comp.allowCooking = True
+
+	def _enable_server_cook(self, custom_families_comp):
+		server_comp = custom_families_comp.op(SERVER_NAME)
+		if server_comp is None:
+			return
+		if server_comp.allowCooking:
+			return
+
+		server_comp.allowCooking = True
 
 	def _pulse_create_family(self, custom_families_comp):
 		# Skip when Local already has at least one family — the .tox may ship
