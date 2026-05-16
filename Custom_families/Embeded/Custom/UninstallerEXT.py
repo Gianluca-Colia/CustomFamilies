@@ -719,20 +719,24 @@ class GenericUninstallerEXT:
 				self._perform_ui_cleanup(installer, family_name=family_name, destroy_toggle=not preserve_button)
 				self._destroy_menu_op_first(family_name)
 				self._cleanup_external_delete_helpers(installer, family_name)
-				try:
-					if hasattr(installer, '_set_recorded_installed_family'):
-						installer._set_recorded_installed_family('')
-				except Exception:
-					pass
-				try:
-					if hasattr(self.ownerComp, 'store'):
-						self.ownerComp.store(self.INSTALLED_FAMILY_STORAGE_KEY, '')
-				except Exception:
-					pass
-				try:
-					self.ownerComp.par.Install = 0
-				except Exception:
-					pass
+				# preserve_button=True signals a rename, not a real uninstall: keep
+				# the installed-family storage and par.Install intact so downstream
+				# code (e.g. SyncInstalledColor) still treats the family as live.
+				if not preserve_button:
+					try:
+						if hasattr(installer, '_set_recorded_installed_family'):
+							installer._set_recorded_installed_family('')
+					except Exception:
+						pass
+					try:
+						if hasattr(self.ownerComp, 'store'):
+							self.ownerComp.store(self.INSTALLED_FAMILY_STORAGE_KEY, '')
+					except Exception:
+						pass
+					try:
+						self.ownerComp.par.Install = 0
+					except Exception:
+						pass
 				self._trace("RemoveFamily completed for '{}'".format(family_name), showMessage=True)
 				return True
 			except Exception as e:
@@ -740,15 +744,16 @@ class GenericUninstallerEXT:
 
 		result = self._fallback_cleanup(family_name=family_name, destroy_toggle=not preserve_button)
 		self._destroy_menu_op_first(family_name)
-		try:
-			if hasattr(self.ownerComp, 'store'):
-				self.ownerComp.store(self.INSTALLED_FAMILY_STORAGE_KEY, '')
-		except Exception:
-			pass
-		try:
-			self.ownerComp.par.Install = 0
-		except Exception:
-			pass
+		if not preserve_button:
+			try:
+				if hasattr(self.ownerComp, 'store'):
+					self.ownerComp.store(self.INSTALLED_FAMILY_STORAGE_KEY, '')
+			except Exception:
+				pass
+			try:
+				self.ownerComp.par.Install = 0
+			except Exception:
+				pass
 		return result
 
 	def DeleteCleanup(self, family_name=None):
