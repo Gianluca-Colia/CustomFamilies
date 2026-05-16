@@ -5767,11 +5767,17 @@ class GenericInstallerEXT:
 
 	def _install_inject_family(self, node_table):
 		families_op = node_table.op('families')
+		# NOTE: do NOT force families.bypass = False here. The original .tox
+		# ships families as a scriptDAT that errors when the inject chain is
+		# the live data path (which is exactly our case once we install custom
+		# families). _refresh_external_families_bypass at the end of this
+		# method handles the bypass correctly: bypass=1 when any inject_ COMP
+		# exists in nodetable so the chain passes through cleanly. Clearing
+		# the bind expression is still useful so the value isn't driven by a
+		# stale expression after our refresh sets it explicitly.
 		try:
-			if families_op:
-				families_op.bypass = False
-				if hasattr(families_op.par, 'bypass'):
-					families_op.par.bypass.expr = ''
+			if families_op and hasattr(families_op.par, 'bypass'):
+				families_op.par.bypass.expr = ''
 		except Exception:
 			pass
 
