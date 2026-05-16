@@ -5,7 +5,7 @@
   custom operator families**, with automatic installation and
   uninstallation and a built-in compatibility system.
 
-  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/releases/download/v0.1.0-alpha/Custom_families.tox)
+  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/releases/download/v0.1.0/Custom_families.tox)
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   [![TouchDesigner](https://img.shields.io/badge/TouchDesigner-2025.32460-blueviolet?style=for-the-badge)](https://derivative.ca/download)
 
