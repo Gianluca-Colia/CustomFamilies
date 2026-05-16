@@ -28,6 +28,9 @@ class GenericInstallerEXT:
 	CUSTOM_FAMILIES_MANAGER_NAME = 'Custom_families'
 	CUSTOM_FAMILIES_MANAGER_PATH = '/ui/Plugins/Custom_families'
 	CUSTOM_FAMILIES_LOCAL_PATH = '/ui/Plugins/Custom_families/Local'
+	CUSTOM_FAMILIES_SERVER_PATH = '/ui/Plugins/Custom_families/Server'
+	LOCAL_BAR_PATH = '/ui/panes/panebar/pane1/Local_bar'
+	SERVER_BAR_PATH = '/ui/panes/panebar/pane1/Server_bar'
 	EMBEDDED_ROOT_NAME = 'Embeded'
 	EMBEDDED_CUSTOM_FAMILIES_PATH = 'Embeded/Custom_families'
 	CUSTOM_FAMILIES_INSTALL_COMPLETE_KEY = 'cf_install_complete'
@@ -293,11 +296,35 @@ class GenericInstallerEXT:
 		return True
 
 	def _ui(self, key):
+		# bookmark_bar / bookmark_empty_panel are resolved dynamically based
+		# on the owner's current location (Local vs Server). All other keys
+		# fall through to the static ui_paths dict.
+		if key == 'bookmark_bar':
+			return op(self._resolve_bookmark_bar_path())
+		if key == 'bookmark_empty_panel':
+			return op(self._resolve_bookmark_bar_path() + '/emptypanel')
 		path = self.ui_paths.get(key, '')
 		o = op(path)
 		if o is None:
 			debug("Missing UI path '{}' -> '{}'".format(key, path))
 		return o
+
+	def _resolve_bookmark_bar_path(self, owner=None):
+		"""Return the toolbar path the family's bookmark toggle should live in.
+
+		Server_bar when ownerComp lives under Custom_families/Server/...;
+		Local_bar in every other case (Local container, pre-routing limbo,
+		or any unknown drop location — those eventually get routed into
+		Local by _resolve_install_host()).
+		"""
+		comp = owner if owner is not None else self.ownerComp
+		try:
+			owner_path = str(comp.path) if comp is not None else ''
+		except Exception:
+			owner_path = ''
+		if owner_path.startswith(self.CUSTOM_FAMILIES_SERVER_PATH + '/'):
+			return self.SERVER_BAR_PATH
+		return self.LOCAL_BAR_PATH
 
 	def _script(self, key):
 		candidates = []
