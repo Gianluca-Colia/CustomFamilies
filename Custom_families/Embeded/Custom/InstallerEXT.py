@@ -4473,6 +4473,46 @@ class GenericInstallerEXT:
 		except Exception:
 			pass
 
+		# Make the Compatible par expression defensive: the shipped template
+		# binds it to op('../compatible')[var('menu_type'), op('in1')[0,0].val],
+		# which raises when in1 is empty (dialog closed / chain dormant).
+		# Returning '' in that case keeps the par silent instead of red-erroring.
+		self._patch_compatible_par_defensive(inject_comp)
+
+	def _patch_compatible_par_defensive(self, inject_comp):
+		"""Wrap inject_comp.par.Compatible's expression with an empty-in1 guard
+		so par evaluation doesn't error when the families chain is dormant.
+		Idempotent: only rewrites the expression when the guard isn't already
+		in place.
+		"""
+		if inject_comp is None:
+			return
+		try:
+			par = getattr(inject_comp.par, 'Compatible', None)
+		except Exception:
+			par = None
+		if par is None:
+			return
+		try:
+			expr = par.expr or ''
+		except Exception:
+			expr = ''
+		# Already guarded — bail.
+		if 'op(\'in1\').numRows' in expr or 'in1.numRows' in expr:
+			return
+		# Only patch the known shipped expression so we don't clobber user edits.
+		if "op('in1')[0,0].val" not in expr or 'compatible' not in expr:
+			return
+		guarded = (
+			"op('../compatible')[var('menu_type'),op('in1')[0,0].val] "
+			"if op('in1').numRows and op('in1').numCols else ''"
+		)
+		try:
+			par.expr = guarded
+			self._trace("Guarded Compatible par on '{}'".format(inject_comp.name))
+		except Exception as e:
+			self._trace("Compatible par guard failed for '{}': {}".format(inject_comp.name, e))
+
 	def _wire_inject_family(self, families_op, inject_op):
 		if families_op is None or inject_op is None:
 			self._trace("wire inject skipped for '{}': families={} inject={}".format(
