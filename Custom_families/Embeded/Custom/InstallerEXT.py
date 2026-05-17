@@ -623,15 +623,24 @@ class GenericInstallerEXT:
 		return
 
 	def _get_install_message(self, install_kind=None):
+		# Clarify the popup: this is the *family* install completing, not the
+		# plugin install (the plugin's own Install_window says "Installation
+		# Completed!"). Include the family name so users with several families
+		# see which one just finished.
+		try:
+			family_label = self._sanitize_family_name(self.family_name) or str(self.ownerComp.name)
+		except Exception:
+			family_label = str(getattr(self.ownerComp, 'name', '') or 'family')
+
 		if isinstance(install_kind, bool):
-			return "Update sucessful!" if install_kind else "Plugin installed!"
+			return "Family '{}' updated!".format(family_label) if install_kind else "Family '{}' installed!".format(family_label)
 
 		install_kind = str(install_kind or '').strip().lower()
 		if install_kind == 'copy':
-			return "Copy completed successfully!"
+			return "Family '{}' copied!".format(family_label)
 		if install_kind == 'update':
-			return "Update sucessful!"
-		return "Plugin installed!"
+			return "Family '{}' updated!".format(family_label)
+		return "Family '{}' installed!".format(family_label)
 
 	def _show_route_message(self, route_label, delay_frames=1):
 		route_label = str(route_label or '').strip()
@@ -4956,6 +4965,17 @@ class GenericInstallerEXT:
 		# It first moves into Custom_families/Local; only that hosted copy installs
 		# buttons, watchers, inserts and menu patches.
 		if not self._is_inside_custom_families_local():
+			# Family lives inside a non-canonical Custom_families (typical:
+			# a freshly-dragged plugin .tox at /project1/Custom_families/...
+			# whose own Install_window dialog hasn't been confirmed yet). The
+			# plugin install pipeline will move this family into canonical
+			# Local later; at that point its Auto_install_execute fires again
+			# and Install runs under the correct host. Defer silently here to
+			# avoid spurious 'Plugin installed!' popups before the user has
+			# even clicked Install.
+			if self._is_inside_custom_families_base():
+				self._trace("Install deferred: family inside non-canonical Custom_families host '{}'".format(self.ownerComp.path))
+				return True
 			if self._queue_auto_install_in_custom_families():
 				self._trace("Install delegated to Custom_families Local for '{}'".format(self.ownerComp.path))
 				return True
