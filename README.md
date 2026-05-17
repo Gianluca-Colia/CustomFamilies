@@ -5,7 +5,7 @@
   custom operator families**, with automatic installation and
   uninstallation and a built-in compatibility system.
 
-  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/raw/dev/.tox/Custom_families/Custom_families.tox)
+  [![Download TOX](https://img.shields.io/badge/Download_TOX-orange?style=for-the-badge&logo=download)](https://github.com/Gianluca-Colia/CustomFamilies/releases/download/v0.1.0/Custom_families.tox)
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   [![TouchDesigner](https://img.shields.io/badge/TouchDesigner-2025.32460-blueviolet?style=for-the-badge)](https://derivative.ca/download)
 
@@ -15,7 +15,7 @@
   [![Issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/issues)
   [![Stars](https://img.shields.io/github/stars/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/stargazers)
   [![Downloads](https://img.shields.io/github/downloads/Gianluca-Colia/CustomFamilies/total?style=flat-square&label=downloads)](https://github.com/Gianluca-Colia/CustomFamilies/releases)
-  [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/dev)
+  [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/main)
 </div>
 
 ---
