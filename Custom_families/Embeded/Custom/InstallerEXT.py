@@ -4965,16 +4965,22 @@ class GenericInstallerEXT:
 		# It first moves into Custom_families/Local; only that hosted copy installs
 		# buttons, watchers, inserts and menu patches.
 		if not self._is_inside_custom_families_local():
-			# Family lives inside a non-canonical Custom_families (typical:
-			# a freshly-dragged plugin .tox at /project1/Custom_families/...
+			# Defer install when the family is inside a Custom_families that
+			# lives somewhere OTHER than the canonical /ui/Plugins/Custom_families
+			# (typical: a freshly-dragged plugin .tox at /project1/Custom_families/...
 			# whose own Install_window dialog hasn't been confirmed yet). The
-			# plugin install pipeline will move this family into canonical
-			# Local later; at that point its Auto_install_execute fires again
-			# and Install runs under the correct host. Defer silently here to
-			# avoid spurious 'Plugin installed!' popups before the user has
-			# even clicked Install.
-			if self._is_inside_custom_families_base():
-				self._trace("Install deferred: family inside non-canonical Custom_families host '{}'".format(self.ownerComp.path))
+			# plugin install pipeline will move the family into canonical Local
+			# later; at that point Auto_install_execute fires again and Install
+			# runs under the correct host. We must NOT defer when the family is
+			# already in canonical Server (or any other canonical sub-container
+			# like a future Embeded extra) — those need to install for real.
+			owner_path = str(self.ownerComp.path)
+			is_canonical_host = (
+				owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or
+				owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/')
+			)
+			if not is_canonical_host and self._is_inside_custom_families_base():
+				self._trace("Install deferred: family inside non-canonical Custom_families host '{}'".format(owner_path))
 				return True
 			if self._queue_auto_install_in_custom_families():
 				self._trace("Install delegated to Custom_families Local for '{}'".format(self.ownerComp.path))
