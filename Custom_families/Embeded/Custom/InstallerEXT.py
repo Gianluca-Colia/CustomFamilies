@@ -305,6 +305,13 @@ class GenericInstallerEXT:
 		self._cleanup_external_delete_helpers(previous_family)
 		return True
 
+	# Keys that may legitimately be missing at runtime — _ui() returns None
+	# for them without emitting the debug warning. 'insert1' is the original
+	# menu_op insertDAT; the first Local family install destroys it after
+	# wiring its own insert_Custom in its place, so any later lookup returning
+	# None is expected and shouldn't pollute the textport.
+	_UI_SILENT_MISSING_KEYS = ('insert1',)
+
 	def _ui(self, key):
 		# bookmark_bar / bookmark_empty_panel are resolved dynamically based
 		# on the owner's current location (Local vs Server). All other keys
@@ -315,7 +322,7 @@ class GenericInstallerEXT:
 			return op(self._resolve_bookmark_bar_path() + '/emptypanel')
 		path = self.ui_paths.get(key, '')
 		o = op(path)
-		if o is None:
+		if o is None and key not in self._UI_SILENT_MISSING_KEYS:
 			debug("Missing UI path '{}' -> '{}'".format(key, path))
 		return o
 
@@ -4827,6 +4834,33 @@ class GenericInstallerEXT:
 				raw_value,
 			))
 			return False
+
+		# Debounce auto-fired installs (Auto_install_execute, watcher, hosted
+		# import, post-init top-up, ...). Each cook of the family or change of
+		# its install par can spawn a fresh InstallerEXT instance via run(),
+		# so the instance-level _handlingInstallValue flag doesn't help — we
+		# need a flag that lives on the COMP and survives across instances.
+		# A 2 second window is enough to coalesce the burst of fires we see
+		# right after Server.allowCooking flips to True without blocking real
+		# back-to-back installs the user might want.
+		if self._is_auto_source(source_label):
+			try:
+				last_attempt = float(self.ownerComp.fetch('cf_last_auto_install_attempt', 0) or 0)
+			except Exception:
+				last_attempt = 0.0
+			now = time.time()
+			DEBOUNCE_S = 2.0
+			if last_attempt > 0 and (now - last_attempt) < DEBOUNCE_S:
+				self._trace(
+					"HandleInstallValue[{}]: debounced for '{}' (last auto attempt {:.2f}s ago)".format(
+						source_label, self.ownerComp.path, now - last_attempt
+					)
+				)
+				return False
+			try:
+				self.ownerComp.store('cf_last_auto_install_attempt', now)
+			except Exception:
+				pass
 
 		return self._HandleInstallAction(source_label=source_label)
 
