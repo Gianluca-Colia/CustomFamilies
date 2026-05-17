@@ -5030,11 +5030,6 @@ class GenericInstallerEXT:
 
 		self.last_install_time = time.time()
 
-		try:
-			self.ownerComp.par.Install = 1
-		except Exception:
-			pass
-
 		print("Installing {}".format(self.family_name))
 		self._trace("Install start for '{}'".format(self.family_name))
 		try:
@@ -5087,16 +5082,25 @@ class GenericInstallerEXT:
 			self._show_message(self._get_install_message(self._lastInstallWasUpdate), delay_frames=3)
 
 		self._set_recorded_installed_family(self.family_name)
-		# Latched "I'm fully installed" flag — distinct from par.Install
-		# which is a pulse trigger that fires the install routine. The
-		# plugin's _poll_local_then_enable_server polls Installstate on
-		# the first Local family to know when it's safe to enable Server
-		# cook (so Server families never race Local during install).
+		# Latch par.Install = 1 ONLY at the end of a successful install,
+		# so par.Install is a true 'fully installed' flag rather than an
+		# 'install in progress' marker. The plugin's
+		# _poll_local_then_enable_server polls this par on the first Local
+		# family to know when it's safe to enable Server cook.
 		try:
-			if hasattr(self.ownerComp.par, 'Installstate'):
-				self.ownerComp.par.Installstate = 1
+			par_install = getattr(self.ownerComp.par, 'Install', None)
+			if par_install is not None:
+				try:
+					par_install.expr = ''
+				except Exception:
+					pass
+				try:
+					par_install.bindExpr = ''
+				except Exception:
+					pass
+				par_install.val = 1
 		except Exception as e:
-			self._trace("Installstate=1 set failed for '{}': {}".format(self.family_name, e))
+			self._trace("par.Install=1 latch failed for '{}': {}".format(self.family_name, e))
 		print("{} installation complete".format(self.family_name))
 		self._trace("Install finished for '{}'".format(self.family_name))
 		return True
@@ -5149,14 +5153,6 @@ class GenericInstallerEXT:
 		self._cleanup_external_delete_helpers(self.family_name)
 
 		self._set_recorded_installed_family(self.family_name)
-		# Clear the latched install flag — keeps Installstate in sync with
-		# the actual install state so any external poller (or condition
-		# expression) gets a truthful value.
-		try:
-			if hasattr(self.ownerComp.par, 'Installstate'):
-				self.ownerComp.par.Installstate = 0
-		except Exception as e:
-			self._trace("Installstate=0 reset failed for '{}': {}".format(self.family_name, e))
 		print("{} uninstallation complete".format(self.family_name))
 		self._trace("Uninstall finished for '{}'".format(self.family_name))
 		return True

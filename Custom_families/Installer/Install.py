@@ -955,11 +955,12 @@ class Install:
 				self._enable_server_cook(target)
 			return
 
-		# The family's "I'm installed" flag is par.Installstate, NOT par.Install
-		# (par.Install is a pulse-style trigger that fires the install routine;
-		# Installstate is the latched True/False that reports completion).
+		# par.Install is the family's installed-state flag (label
+		# 'Install State'). The family InstallerEXT now latches it to 1
+		# only at the end of a successful Install(), so polling it here
+		# is a reliable "Custom is fully up" signal.
 		try:
-			installed = bool(first_fam.par.Installstate.eval())
+			installed = bool(first_fam.par.Install.eval())
 		except Exception:
 			installed = False
 
@@ -968,7 +969,7 @@ class Install:
 			return
 
 		if attempt >= MAX_ATTEMPTS:
-			debug("[Custom_families install] Timeout waiting for '{}' Installstate; enabling Server anyway.".format(first_fam.path))
+			debug("[Custom_families install] Timeout waiting for '{}' par.Install; enabling Server anyway.".format(first_fam.path))
 			self._enable_server_cook(target)
 			return
 
