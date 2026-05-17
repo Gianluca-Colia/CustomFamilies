@@ -455,10 +455,18 @@ class Install:
 			('Set menu label width',       lambda c: self._set_menu_label_width()),
 			('Wire Page_number',           lambda c: self._wire_page_number()),
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
-			('Enable Local',               lambda c: self._enable_local_cook(c)),
-			('Enable Server',              lambda c: self._enable_server_cook(c)),
+			# Realign scripts BEFORE waking up Local/Server: when families
+			# auto-install they need to use the canonical Embeded/Custom
+			# scripts, not their stale per-family copies.
 			('Realign scripts',            lambda c: self.RealignScripts()),
+			('Enable Local',               lambda c: self._enable_local_cook(c)),
 			('Spawn first family',         lambda c: self._pulse_create_family(c)),
+			# Defer Server cook until the first Local family finishes
+			# installing, so Server families never start their install in
+			# parallel with the Local Custom install. The step kicks off a
+			# poller and returns immediately; the actual enable happens
+			# whenever Custom.par.Install == 1.
+			('Enable Server (after Local)', lambda c: self._enable_server_after_local_ready(c)),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
@@ -886,6 +894,78 @@ class Install:
 			return
 
 		server_comp.allowCooking = True
+
+	def _enable_server_after_local_ready(self, custom_families_comp):
+		"""Defer Server cook until the first Local family completes install.
+
+		Server families (e.g. HOP) running in parallel with the first Local
+		family install (Custom) caused multiple race conditions: contention
+		on /ui/dialogs/menu_op/insert1, on the bookmark_bar wiring, on the
+		families chain re-wiring, etc. Sequencing Local → Server keeps each
+		family's install atomic with respect to menu_op state.
+
+		This step kicks off a deferred poller and returns immediately; the
+		install pipeline marks itself complete, the visible Install_window
+		flips to State 2, and Server cook flips on as soon as Custom is
+		installed (or after a safety timeout).
+		"""
+		self._schedule_server_enable_poll(custom_families_comp.path, attempt=0)
+
+	def _schedule_server_enable_poll(self, target_path, attempt):
+		run(
+			"owner = op(args[0]); "
+			"owner.ext.Install._poll_local_then_enable_server(args[0], args[1]) if owner is not None else None",
+			target_path,
+			attempt,
+			delayFrames=10,
+		)
+
+	def _poll_local_then_enable_server(self, target_path, attempt):
+		target = op(target_path)
+		if target is None:
+			return
+
+		local_comp = target.op(LOCAL_NAME)
+		if local_comp is None:
+			# No Local container at all — nothing to wait on. Enable Server now.
+			self._enable_server_cook(target)
+			return
+
+		first_fam = None
+		try:
+			for child in local_comp.children:
+				if getattr(child, 'isCOMP', False):
+					first_fam = child
+					break
+		except Exception:
+			first_fam = None
+
+		# 120 polls × 10 frames @60fps = 20 seconds safety budget.
+		MAX_ATTEMPTS = 120
+
+		if first_fam is None:
+			if attempt < MAX_ATTEMPTS:
+				self._schedule_server_enable_poll(target_path, attempt + 1)
+			else:
+				debug('[Custom_families install] No Local family materialised; enabling Server anyway.')
+				self._enable_server_cook(target)
+			return
+
+		try:
+			installed = bool(first_fam.par.Install.eval())
+		except Exception:
+			installed = False
+
+		if installed:
+			self._enable_server_cook(target)
+			return
+
+		if attempt >= MAX_ATTEMPTS:
+			debug("[Custom_families install] Timeout waiting for '{}' install; enabling Server anyway.".format(first_fam.path))
+			self._enable_server_cook(target)
+			return
+
+		self._schedule_server_enable_poll(target_path, attempt + 1)
 
 	def _pulse_create_family(self, custom_families_comp):
 		# Skip when Local already has at least one family — the .tox may ship
