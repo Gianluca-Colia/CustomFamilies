@@ -5,6 +5,9 @@ Installer runtime.
 import time
 import re
 import os
+import ssl
+import urllib.request
+import urllib.error
 
 
 class GenericInstallerEXT:
@@ -28,8 +31,18 @@ class GenericInstallerEXT:
 	CUSTOM_FAMILIES_MANAGER_NAME = 'Custom_families'
 	CUSTOM_FAMILIES_MANAGER_PATH = '/ui/Plugins/Custom_families'
 	CUSTOM_FAMILIES_LOCAL_PATH = '/ui/Plugins/Custom_families/Local'
+	CUSTOM_FAMILIES_SERVER_PATH = '/ui/Plugins/Custom_families/Server'
+	LOCAL_BAR_PATH = '/ui/panes/panebar/pane1/Local_bar'
+	SERVER_BAR_PATH = '/ui/panes/panebar/pane1/Server_bar'
 	EMBEDDED_ROOT_NAME = 'Embeded'
-	EMBEDDED_CUSTOM_FAMILIES_PATH = 'Embeded/Custom_families'
+	# Bootstrap-from-repo: when a family is dropped into a project that does
+	# NOT have Custom_families installed (no /ui/Plugins/Custom_families and
+	# no Local container), the family downloads the plugin .tox from this URL
+	# and loads it into TD. We point at the dev raw .tox during alpha; switch
+	# to a release asset (releases/download/<tag>/Custom_families.tox) once
+	# we leave alpha to get versioning + download counter on each bootstrap.
+	BOOTSTRAP_TOX_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/raw/main/.tox/Custom_families/Custom_families.tox'
+	BOOTSTRAP_TOX_TEMP_NAME = 'bootstrap_Custom_families.tox'
 	CUSTOM_FAMILIES_INSTALL_COMPLETE_KEY = 'cf_install_complete'
 	CUSTOM_OPERATOR_EXTENSION_SIGNATURES = (
 		'Extension classes enhance TouchDesigner components with python',
@@ -292,12 +305,43 @@ class GenericInstallerEXT:
 		self._cleanup_external_delete_helpers(previous_family)
 		return True
 
+	# Keys that may legitimately be missing at runtime — _ui() returns None
+	# for them without emitting the debug warning. 'insert1' is the original
+	# menu_op insertDAT; the first Local family install destroys it after
+	# wiring its own insert_Custom in its place, so any later lookup returning
+	# None is expected and shouldn't pollute the textport.
+	_UI_SILENT_MISSING_KEYS = ('insert1',)
+
 	def _ui(self, key):
+		# bookmark_bar / bookmark_empty_panel are resolved dynamically based
+		# on the owner's current location (Local vs Server). All other keys
+		# fall through to the static ui_paths dict.
+		if key == 'bookmark_bar':
+			return op(self._resolve_bookmark_bar_path())
+		if key == 'bookmark_empty_panel':
+			return op(self._resolve_bookmark_bar_path() + '/emptypanel')
 		path = self.ui_paths.get(key, '')
 		o = op(path)
-		if o is None:
+		if o is None and key not in self._UI_SILENT_MISSING_KEYS:
 			debug("Missing UI path '{}' -> '{}'".format(key, path))
 		return o
+
+	def _resolve_bookmark_bar_path(self, owner=None):
+		"""Return the toolbar path the family's bookmark toggle should live in.
+
+		Server_bar when ownerComp lives under Custom_families/Server/...;
+		Local_bar in every other case (Local container, pre-routing limbo,
+		or any unknown drop location — those eventually get routed into
+		Local by _resolve_install_host()).
+		"""
+		comp = owner if owner is not None else self.ownerComp
+		try:
+			owner_path = str(comp.path) if comp is not None else ''
+		except Exception:
+			owner_path = ''
+		if owner_path.startswith(self.CUSTOM_FAMILIES_SERVER_PATH + '/'):
+			return self.SERVER_BAR_PATH
+		return self.LOCAL_BAR_PATH
 
 	def _script(self, key):
 		candidates = []
@@ -586,15 +630,24 @@ class GenericInstallerEXT:
 		return
 
 	def _get_install_message(self, install_kind=None):
+		# Clarify the popup: this is the *family* install completing, not the
+		# plugin install (the plugin's own Install_window says "Installation
+		# Completed!"). Include the family name so users with several families
+		# see which one just finished.
+		try:
+			family_label = self._sanitize_family_name(self.family_name) or str(self.ownerComp.name)
+		except Exception:
+			family_label = str(getattr(self.ownerComp, 'name', '') or 'family')
+
 		if isinstance(install_kind, bool):
-			return "Update sucessful!" if install_kind else "Plugin installed!"
+			return "Family '{}' updated!".format(family_label) if install_kind else "Family '{}' installed!".format(family_label)
 
 		install_kind = str(install_kind or '').strip().lower()
 		if install_kind == 'copy':
-			return "Copy completed successfully!"
+			return "Family '{}' copied!".format(family_label)
 		if install_kind == 'update':
-			return "Update sucessful!"
-		return "Plugin installed!"
+			return "Family '{}' updated!".format(family_label)
+		return "Family '{}' installed!".format(family_label)
 
 	def _show_route_message(self, route_label, delay_frames=1):
 		route_label = str(route_label or '').strip()
@@ -1212,11 +1265,16 @@ class GenericInstallerEXT:
 		return plugins_root
 
 	def _is_inside_custom_families_base(self):
+		# Canonical path match first (cheap).
 		owner_path = str(self.ownerComp.path)
-		return (
-			owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or
-			owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/')
-		)
+		if owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or \
+			owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/'):
+			return True
+		# Ancestry match: family is sitting inside a Custom_families COMP that
+		# lives somewhere else (e.g. a freshly-dragged .tox at /project1/...).
+		# In that case the plugin's own install dialog will handle install;
+		# the family must NOT bootstrap a fresh download on top.
+		return self._is_component_inside_custom_families(self.ownerComp)
 
 	def _is_inside_custom_families_local(self):
 		owner_path = str(self.ownerComp.path)
@@ -1283,7 +1341,12 @@ class GenericInstallerEXT:
 		if cf_root is not None and cf_local is not None:
 			return self._move_family_to_local(cf_local)
 
-		host = self._install_embedded_host()
+		# Case C-special: family dropped into a project where the plugin
+		# isn't installed (no /ui/Plugins/Custom_families, no Local). Pull
+		# the plugin .tox straight from GitHub and load it under /ui/Plugins,
+		# then wait for its install to complete before moving the family
+		# into the now-existing Local container.
+		host = self._install_host_from_repo()
 		if host is None:
 			return False
 
@@ -1361,27 +1424,63 @@ class GenericInstallerEXT:
 		))
 		return True
 
-	def _install_embedded_host(self):
+	def _install_host_from_repo(self):
+		"""Bootstrap Custom_families when it isn't installed yet by downloading
+		the plugin .tox from GitHub and loading it under /ui/Plugins.
+
+		Replaces the legacy embedded-host path (which required every family
+		to ship a full copy of the plugin under its Embeded/ folder). The
+		family no longer needs the embedded payload — only network access
+		on the very first install. Subsequent family imports skip this
+		path because plugins_root.op(Custom_families) already exists.
+		"""
 		plugins_root = self._get_or_create_plugins_root()
 		if plugins_root is None:
 			self._trace("Plugins root could not be created under /ui")
 			return None
 
-		embedded_manager = self.ownerComp.op(self.EMBEDDED_CUSTOM_FAMILIES_PATH)
-		if embedded_manager is None:
-			self._trace("Embedded Custom_families manager missing under '{}/{}'".format(
-				self.ownerComp.path,
-				self.EMBEDDED_CUSTOM_FAMILIES_PATH
-			))
-			return None
-
 		host = plugins_root.op(self.CUSTOM_FAMILIES_MANAGER_NAME)
 		if host is None:
-			self._show_message('Custom families host installation started')
-			host = plugins_root.copy(embedded_manager, name=self.CUSTOM_FAMILIES_MANAGER_NAME, includeDocked=True)
-			if host is None:
-				self._trace("Failed to copy embedded Custom_families into '{}'".format(plugins_root.path))
+			tox_path = os.path.join(
+				app.preferencesFolder,
+				'Custom families',
+				self.BOOTSTRAP_TOX_TEMP_NAME,
+			)
+			try:
+				os.makedirs(os.path.dirname(tox_path), exist_ok=True)
+			except Exception:
+				pass
+
+			self._show_message('Downloading Custom_families plugin...')
+			try:
+				self._download_bootstrap_tox(self.BOOTSTRAP_TOX_URL, tox_path)
+			except Exception as exc:
+				self._trace("Bootstrap download failed: {}: {}".format(type(exc).__name__, exc))
+				self._show_message('Custom_families download failed — check your internet connection.')
 				return None
+
+			self._show_message('Custom families host installation started')
+			try:
+				host = plugins_root.loadTox(tox_path)
+			except Exception as exc:
+				self._trace("loadTox failed for '{}': {}".format(tox_path, exc))
+				self._show_message('Failed to load Custom_families.tox.')
+				return None
+
+			if host is None:
+				self._trace("loadTox returned None for '{}'".format(tox_path))
+				return None
+
+			try:
+				if host.name != self.CUSTOM_FAMILIES_MANAGER_NAME:
+					host.name = self.CUSTOM_FAMILIES_MANAGER_NAME
+			except Exception:
+				pass
+
+			try:
+				os.remove(tox_path)
+			except Exception:
+				pass
 
 		host.allowCooking = True
 		# Do NOT set host.par.opshortcut here. We resolve Custom_families by
@@ -1417,8 +1516,41 @@ class GenericInstallerEXT:
 		except Exception:
 			pass
 
-		self._trace("Embedded Custom_families host installed at '{}', state reset and Install pulse fired".format(host.path))
+		self._trace("Custom_families host installed at '{}', state reset and Install pulse fired".format(host.path))
 		return host
+
+	def _download_bootstrap_tox(self, url, dest_path):
+		"""Stream the Custom_families plugin .tox from GitHub to disk.
+
+		Mirrors the SSL/User-Agent handling in Installer/Install._download_zip:
+		TD's embedded Python ships without a CA bundle, so the default verified
+		context fails on github.com. We try verified first and fall back to an
+		unverified context only on SSL errors. The User-Agent header avoids
+		GitHub 403s on 'unknown client'.
+		"""
+		req = urllib.request.Request(
+			url,
+			headers={'User-Agent': 'Custom_families-family-bootstrap'},
+		)
+		try:
+			response = urllib.request.urlopen(req, timeout=30)
+		except (ssl.SSLError, urllib.error.URLError) as ssl_exc:
+			is_ssl = isinstance(ssl_exc, ssl.SSLError) or (
+				isinstance(ssl_exc, urllib.error.URLError)
+				and isinstance(ssl_exc.reason, ssl.SSLError)
+			)
+			if not is_ssl:
+				raise
+			self._trace("Bootstrap SSL verification failed, retrying unverified: {}".format(ssl_exc))
+			ctx = ssl._create_unverified_context()
+			response = urllib.request.urlopen(req, timeout=30, context=ctx)
+
+		with response, open(dest_path, 'wb') as out:
+			while True:
+				chunk = response.read(64 * 1024)
+				if not chunk:
+					break
+				out.write(chunk)
 
 	def _schedule_wait_for_host_then_move(self, host, delay_frames=20):
 		run(
@@ -3329,6 +3461,13 @@ class GenericInstallerEXT:
 			self._trace("Install delete watcher failed for '{}': {}".format(self.family_name, e))
 			return False
 
+		# Ensure cook is enabled immediately so callbacks fire as soon as
+		# par.file / target wiring lands below.
+		try:
+			watcher.allowCooking = True
+		except Exception:
+			pass
+
 		script_path = self._get_parameter_script_path('Delete_op_execute.py')
 
 		try:
@@ -4350,6 +4489,46 @@ class GenericInstallerEXT:
 		except Exception:
 			pass
 
+		# Make the Compatible par expression defensive: the shipped template
+		# binds it to op('../compatible')[var('menu_type'), op('in1')[0,0].val],
+		# which raises when in1 is empty (dialog closed / chain dormant).
+		# Returning '' in that case keeps the par silent instead of red-erroring.
+		self._patch_compatible_par_defensive(inject_comp)
+
+	def _patch_compatible_par_defensive(self, inject_comp):
+		"""Wrap inject_comp.par.Compatible's expression with an empty-in1 guard
+		so par evaluation doesn't error when the families chain is dormant.
+		Idempotent: only rewrites the expression when the guard isn't already
+		in place.
+		"""
+		if inject_comp is None:
+			return
+		try:
+			par = getattr(inject_comp.par, 'Compatible', None)
+		except Exception:
+			par = None
+		if par is None:
+			return
+		try:
+			expr = par.expr or ''
+		except Exception:
+			expr = ''
+		# Already guarded — bail.
+		if 'op(\'in1\').numRows' in expr or 'in1.numRows' in expr:
+			return
+		# Only patch the known shipped expression so we don't clobber user edits.
+		if "op('in1')[0,0].val" not in expr or 'compatible' not in expr:
+			return
+		guarded = (
+			"op('../compatible')[var('menu_type'),op('in1')[0,0].val] "
+			"if op('in1').numRows and op('in1').numCols else ''"
+		)
+		try:
+			par.expr = guarded
+			self._trace("Guarded Compatible par on '{}'".format(inject_comp.name))
+		except Exception as e:
+			self._trace("Compatible par guard failed for '{}': {}".format(inject_comp.name, e))
+
 	def _wire_inject_family(self, families_op, inject_op):
 		if families_op is None or inject_op is None:
 			self._trace("wire inject skipped for '{}': families={} inject={}".format(
@@ -4656,6 +4835,33 @@ class GenericInstallerEXT:
 			))
 			return False
 
+		# Debounce auto-fired installs (Auto_install_execute, watcher, hosted
+		# import, post-init top-up, ...). Each cook of the family or change of
+		# its install par can spawn a fresh InstallerEXT instance via run(),
+		# so the instance-level _handlingInstallValue flag doesn't help — we
+		# need a flag that lives on the COMP and survives across instances.
+		# A 2 second window is enough to coalesce the burst of fires we see
+		# right after Server.allowCooking flips to True without blocking real
+		# back-to-back installs the user might want.
+		if self._is_auto_source(source_label):
+			try:
+				last_attempt = float(self.ownerComp.fetch('cf_last_auto_install_attempt', 0) or 0)
+			except Exception:
+				last_attempt = 0.0
+			now = time.time()
+			DEBOUNCE_S = 2.0
+			if last_attempt > 0 and (now - last_attempt) < DEBOUNCE_S:
+				self._trace(
+					"HandleInstallValue[{}]: debounced for '{}' (last auto attempt {:.2f}s ago)".format(
+						source_label, self.ownerComp.path, now - last_attempt
+					)
+				)
+				return False
+			try:
+				self.ownerComp.store('cf_last_auto_install_attempt', now)
+			except Exception:
+				pass
+
 		return self._HandleInstallAction(source_label=source_label)
 
 	def _HandleInstallAction(self, source_label='external'):
@@ -4793,6 +4999,23 @@ class GenericInstallerEXT:
 		# It first moves into Custom_families/Local; only that hosted copy installs
 		# buttons, watchers, inserts and menu patches.
 		if not self._is_inside_custom_families_local():
+			# Defer install when the family is inside a Custom_families that
+			# lives somewhere OTHER than the canonical /ui/Plugins/Custom_families
+			# (typical: a freshly-dragged plugin .tox at /project1/Custom_families/...
+			# whose own Install_window dialog hasn't been confirmed yet). The
+			# plugin install pipeline will move the family into canonical Local
+			# later; at that point Auto_install_execute fires again and Install
+			# runs under the correct host. We must NOT defer when the family is
+			# already in canonical Server (or any other canonical sub-container
+			# like a future Embeded extra) — those need to install for real.
+			owner_path = str(self.ownerComp.path)
+			is_canonical_host = (
+				owner_path == self.CUSTOM_FAMILIES_MANAGER_PATH or
+				owner_path.startswith(self.CUSTOM_FAMILIES_MANAGER_PATH + '/')
+			)
+			if not is_canonical_host and self._is_inside_custom_families_base():
+				self._trace("Install deferred: family inside non-canonical Custom_families host '{}'".format(owner_path))
+				return True
 			if self._queue_auto_install_in_custom_families():
 				self._trace("Install delegated to Custom_families Local for '{}'".format(self.ownerComp.path))
 				return True
@@ -4840,11 +5063,6 @@ class GenericInstallerEXT:
 			self._apply_canonical_family_name(canonical_family)
 
 		self.last_install_time = time.time()
-
-		try:
-			self.ownerComp.par.Install = 1
-		except Exception:
-			pass
 
 		print("Installing {}".format(self.family_name))
 		self._trace("Install start for '{}'".format(self.family_name))
@@ -4898,6 +5116,25 @@ class GenericInstallerEXT:
 			self._show_message(self._get_install_message(self._lastInstallWasUpdate), delay_frames=3)
 
 		self._set_recorded_installed_family(self.family_name)
+		# Latch par.Install = 1 ONLY at the end of a successful install,
+		# so par.Install is a true 'fully installed' flag rather than an
+		# 'install in progress' marker. The plugin's
+		# _poll_local_then_enable_server polls this par on the first Local
+		# family to know when it's safe to enable Server cook.
+		try:
+			par_install = getattr(self.ownerComp.par, 'Install', None)
+			if par_install is not None:
+				try:
+					par_install.expr = ''
+				except Exception:
+					pass
+				try:
+					par_install.bindExpr = ''
+				except Exception:
+					pass
+				par_install.val = 1
+		except Exception as e:
+			self._trace("par.Install=1 latch failed for '{}': {}".format(self.family_name, e))
 		print("{} installation complete".format(self.family_name))
 		self._trace("Install finished for '{}'".format(self.family_name))
 		return True
@@ -5477,6 +5714,14 @@ class GenericInstallerEXT:
 			else:
 				family_insert = existing_insert
 				self._mark_managed_family_insert(family_insert, family_name=self.family_name)
+
+			# Ensure cook is enabled right after the copy/create so the insert
+			# starts feeding the menu_op pipeline immediately.
+			try:
+				if family_insert is not None:
+					family_insert.allowCooking = True
+			except Exception:
+				pass
 			# For baseCOMP wrapper (Insert_Custom), configure the inner insertDAT;
 			# for a bare insertDAT, configure directly.
 			# Try both cases since the inner DAT may be named 'Insert_Custom' or 'insert_Custom'.
@@ -5636,11 +5881,17 @@ class GenericInstallerEXT:
 
 	def _install_inject_family(self, node_table):
 		families_op = node_table.op('families')
+		# NOTE: do NOT force families.bypass = False here. The original .tox
+		# ships families as a scriptDAT that errors when the inject chain is
+		# the live data path (which is exactly our case once we install custom
+		# families). _refresh_external_families_bypass at the end of this
+		# method handles the bypass correctly: bypass=1 when any inject_ COMP
+		# exists in nodetable so the chain passes through cleanly. Clearing
+		# the bind expression is still useful so the value isn't driven by a
+		# stale expression after our refresh sets it explicitly.
 		try:
-			if families_op:
-				families_op.bypass = False
-				if hasattr(families_op.par, 'bypass'):
-					families_op.par.bypass.expr = ''
+			if families_op and hasattr(families_op.par, 'bypass'):
+				families_op.par.bypass.expr = ''
 		except Exception:
 			pass
 
@@ -5673,6 +5924,12 @@ class GenericInstallerEXT:
 				inject_op = node_table.copy(template_inject, name=inject_name, includeDocked=True)
 			else:
 				inject_op = existing_inject
+			# Ensure cook is enabled before wiring/templating so the inject
+			# pipeline produces output as soon as it lands in node_table.
+			try:
+				inject_op.allowCooking = True
+			except Exception:
+				pass
 			self._prepare_inject_template_instance(inject_op)
 			tail_inject = None
 			try:
@@ -6077,6 +6334,12 @@ class GenericInstallerEXT:
 				panel_execute = menu_op.copy(template, name=panel_execute_name)
 			else:
 				panel_execute = existing_panel_execute
+			# Ensure cook is enabled right after the copy so the panel execute
+			# starts intercepting events from menu_op immediately.
+			try:
+				panel_execute.allowCooking = True
+			except Exception:
+				pass
 			try:
 				panel_execute.store('cf_managed_panel_execute', True)
 				panel_execute.store('cf_managed_family_name', self._sanitize_family_name(self.family_name))
@@ -6121,25 +6384,64 @@ class GenericInstallerEXT:
 			self._trace("Compatible table missing for '{}'".format(self.family_name))
 			return
 
+		# TD's OP Create Dialog uses this table to decide which operators show
+		# in each tab. A blank cell at [menu_type, op_type] makes the dialog
+		# think the pairing is "allowed" (no explicit incompatibility), which
+		# breaks the operator list once a custom family is added. The shipped
+		# 'Custom' row/col is filled entirely with 'x' to mark a custom family
+		# as incompatible with every built-in family — and with any other
+		# custom family. Mirror that convention here for every new family so
+		# adding HOP doesn't silently leave empty cells on the HOP row, on the
+		# HOP column, and on the Custom×HOP / HOP×Custom intersections.
 		try:
-			pops_installed = bool(comp_table.cols('POP'))
-
 			if not comp_table.rows(self.family_name):
-				row_entry = [self.family_name]
-				for index in range(1, comp_table.numCols):
-					col_type = comp_table[0, index].val
-					row_entry.append('x' if col_type == self.family_name or (col_type == 'POP' and pops_installed) else '')
+				row_entry = [self.family_name] + ['x'] * (comp_table.numCols - 1)
 				comp_table.appendRow(row_entry)
 
 			if not comp_table.cols(self.family_name):
-				col_entry = [self.family_name]
-				for row in comp_table.rows()[1:]:
-					row_type = row[0].val
-					col_entry.append('x' if row_type == self.family_name or (row_type == 'POP' and pops_installed) else '')
+				col_entry = [self.family_name] + ['x'] * (comp_table.numRows - 1)
 				comp_table.appendCol(col_entry)
+
+			# Backfill any cell on the new row / new column that other previous
+			# installs (or the legacy buggy code) left empty. Idempotent: only
+			# touches cells that are currently empty so manually-tuned
+			# compatibility entries are preserved.
+			self._backfill_compatible_blanks(comp_table, self.family_name)
+
 			self._trace("Updated compatible table for '{}'".format(self.family_name))
 		except Exception as e:
 			debug("Compatible table update failed: {}".format(e))
+
+	def _backfill_compatible_blanks(self, comp_table, family_name):
+		"""Fill empty cells on family_name's row/col with 'x' so the OP Create
+		Dialog doesn't treat them as a valid compatibility entry.
+		"""
+		family_name = self._sanitize_family_name(family_name)
+		if not family_name:
+			return
+
+		try:
+			row_cells = comp_table.row(family_name)
+		except Exception:
+			row_cells = None
+		try:
+			col_cells = comp_table.col(family_name)
+		except Exception:
+			col_cells = None
+
+		def _fill(cells):
+			if not cells:
+				return
+			# Skip index 0 (the header cell carrying the family name itself).
+			for cell in cells[1:]:
+				try:
+					if str(cell.val) == '':
+						cell.val = 'x'
+				except Exception:
+					pass
+
+		_fill(row_cells)
+		_fill(col_cells)
 
 	def _remove_color_row(self, menu_op, family_name=None):
 		family_name = family_name or self.family_name

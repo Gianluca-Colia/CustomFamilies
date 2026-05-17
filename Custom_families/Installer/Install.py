@@ -42,6 +42,7 @@ PLUGINS_PREFIX = '/ui/Plugins/'
 INSTALL_DAT_NAME = 'Install'
 RUNTIME_NAME = 'Runtime'
 LOCAL_NAME = 'Local'
+SERVER_NAME = 'Server'
 # Important: in this layout the visible toolbar is produced by shrinking the
 # top pane by writing the split ratio on the bottom pane. This looks inverted,
 # but it is the stable behavior we observed in TD for this top/bottom split.
@@ -288,6 +289,13 @@ class Install:
 		doesn't exist on disk yet TD just shows the DAT empty / warns
 		in textport; the embedded text in the .tox keeps running until
 		the install pulls the .py.
+
+		Family-internal scripts (Local/<fam>/* and Server/<fam>/*) are
+		REWRITTEN to point at the canonical template under
+		Custom_families/Embeded/Custom/. Otherwise every family would
+		keep its own per-family copy of the framework scripts on disk
+		and patches to the canonical template would never propagate to
+		existing families.
 		"""
 		target = op(dat_path)
 		if target is None or not target.pars('file'):
@@ -297,6 +305,20 @@ class Install:
 		rel = dat_path[len(PLUGINS_PREFIX):]
 		if not rel:
 			return False
+
+		# Detect family-internal scripts and redirect to canonical.
+		# rel shape: 'Custom_families/<container>/<family>/<sub...>'
+		# where container is Local or Server. Plugin-level scripts (e.g.
+		# 'Custom_families/Installer/chopexec1') don't match and pass through
+		# unchanged.
+		parts = rel.split('/')
+		if (
+			len(parts) >= 4
+			and parts[0] == 'Custom_families'
+			and parts[1] in ('Local', 'Server')
+		):
+			family_relative = '/'.join(parts[3:])
+			rel = 'Custom_families/Embeded/Custom/' + family_relative
 
 		rel_disk = '/Custom families/' + rel + '.py'
 		new_expr = 'app.preferencesFolder + ' + repr(rel_disk)
@@ -433,9 +455,18 @@ class Install:
 			('Set menu label width',       lambda c: self._set_menu_label_width()),
 			('Wire Page_number',           lambda c: self._wire_page_number()),
 			('Enable runtime',             lambda c: self._enable_runtime_cook(c)),
-			('Enable Local',               lambda c: self._enable_local_cook(c)),
+			# Realign scripts BEFORE waking up Local/Server: when families
+			# auto-install they need to use the canonical Embeded/Custom
+			# scripts, not their stale per-family copies.
 			('Realign scripts',            lambda c: self.RealignScripts()),
+			('Enable Local',               lambda c: self._enable_local_cook(c)),
 			('Spawn first family',         lambda c: self._pulse_create_family(c)),
+			# Defer Server cook until the first Local family finishes
+			# installing, so Server families never start their install in
+			# parallel with the Local Custom install. The step kicks off a
+			# poller and returns immediately; the actual enable happens
+			# whenever Custom.par.Install == 1.
+			('Enable Server (after Local)', lambda c: self._enable_server_after_local_ready(c)),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
@@ -854,6 +885,95 @@ class Install:
 			return
 
 		local_comp.allowCooking = True
+
+	def _enable_server_cook(self, custom_families_comp):
+		server_comp = custom_families_comp.op(SERVER_NAME)
+		if server_comp is None:
+			return
+		if server_comp.allowCooking:
+			return
+
+		server_comp.allowCooking = True
+
+	def _enable_server_after_local_ready(self, custom_families_comp):
+		"""Defer Server cook until the first Local family completes install.
+
+		Server families (e.g. HOP) running in parallel with the first Local
+		family install (Custom) caused multiple race conditions: contention
+		on /ui/dialogs/menu_op/insert1, on the bookmark_bar wiring, on the
+		families chain re-wiring, etc. Sequencing Local → Server keeps each
+		family's install atomic with respect to menu_op state.
+
+		This step kicks off a deferred poller and returns immediately; the
+		install pipeline marks itself complete, the visible Install_window
+		flips to State 2, and Server cook flips on as soon as Custom is
+		installed (or after a safety timeout).
+		"""
+		self._schedule_server_enable_poll(attempt=0)
+
+	def _schedule_server_enable_poll(self, attempt):
+		# Mirror _schedule_install_step's pattern: resolve the Install
+		# extension via the Installer COMP (self.ownerComp), NOT via the
+		# Custom_families root (which has no Install ext).
+		run(
+			"owner = op(args[0]); "
+			"owner.ext.Install._poll_local_then_enable_server(args[1]) if owner is not None else None",
+			self.ownerComp.path,
+			attempt,
+			delayFrames=10,
+		)
+
+	def _poll_local_then_enable_server(self, attempt):
+		# Installer COMP's parent IS the Custom_families root host.
+		target = self.ownerComp.parent() if self.ownerComp is not None else None
+		if target is None:
+			return
+
+		local_comp = target.op(LOCAL_NAME)
+		if local_comp is None:
+			# No Local container at all — nothing to wait on. Enable Server now.
+			self._enable_server_cook(target)
+			return
+
+		first_fam = None
+		try:
+			for child in local_comp.children:
+				if getattr(child, 'isCOMP', False):
+					first_fam = child
+					break
+		except Exception:
+			first_fam = None
+
+		# 120 polls × 10 frames @60fps = 20 seconds safety budget.
+		MAX_ATTEMPTS = 120
+
+		if first_fam is None:
+			if attempt < MAX_ATTEMPTS:
+				self._schedule_server_enable_poll(attempt + 1)
+			else:
+				debug('[Custom_families install] No Local family materialised; enabling Server anyway.')
+				self._enable_server_cook(target)
+			return
+
+		# par.Install is the family's installed-state flag (label
+		# 'Install State'). The family InstallerEXT now latches it to 1
+		# only at the end of a successful Install(), so polling it here
+		# is a reliable "Custom is fully up" signal.
+		try:
+			installed = bool(first_fam.par.Install.eval())
+		except Exception:
+			installed = False
+
+		if installed:
+			self._enable_server_cook(target)
+			return
+
+		if attempt >= MAX_ATTEMPTS:
+			debug("[Custom_families install] Timeout waiting for '{}' par.Install; enabling Server anyway.".format(first_fam.path))
+			self._enable_server_cook(target)
+			return
+
+		self._schedule_server_enable_poll(attempt + 1)
 
 	def _pulse_create_family(self, custom_families_comp):
 		# Skip when Local already has at least one family — the .tox may ship
