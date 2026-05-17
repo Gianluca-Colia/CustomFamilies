@@ -909,19 +909,23 @@ class Install:
 		flips to State 2, and Server cook flips on as soon as Custom is
 		installed (or after a safety timeout).
 		"""
-		self._schedule_server_enable_poll(custom_families_comp.path, attempt=0)
+		self._schedule_server_enable_poll(attempt=0)
 
-	def _schedule_server_enable_poll(self, target_path, attempt):
+	def _schedule_server_enable_poll(self, attempt):
+		# Mirror _schedule_install_step's pattern: resolve the Install
+		# extension via the Installer COMP (self.ownerComp), NOT via the
+		# Custom_families root (which has no Install ext).
 		run(
 			"owner = op(args[0]); "
-			"owner.ext.Install._poll_local_then_enable_server(args[0], args[1]) if owner is not None else None",
-			target_path,
+			"owner.ext.Install._poll_local_then_enable_server(args[1]) if owner is not None else None",
+			self.ownerComp.path,
 			attempt,
 			delayFrames=10,
 		)
 
-	def _poll_local_then_enable_server(self, target_path, attempt):
-		target = op(target_path)
+	def _poll_local_then_enable_server(self, attempt):
+		# Installer COMP's parent IS the Custom_families root host.
+		target = self.ownerComp.parent() if self.ownerComp is not None else None
 		if target is None:
 			return
 
@@ -945,14 +949,17 @@ class Install:
 
 		if first_fam is None:
 			if attempt < MAX_ATTEMPTS:
-				self._schedule_server_enable_poll(target_path, attempt + 1)
+				self._schedule_server_enable_poll(attempt + 1)
 			else:
 				debug('[Custom_families install] No Local family materialised; enabling Server anyway.')
 				self._enable_server_cook(target)
 			return
 
+		# The family's "I'm installed" flag is par.Installstate, NOT par.Install
+		# (par.Install is a pulse-style trigger that fires the install routine;
+		# Installstate is the latched True/False that reports completion).
 		try:
-			installed = bool(first_fam.par.Install.eval())
+			installed = bool(first_fam.par.Installstate.eval())
 		except Exception:
 			installed = False
 
@@ -961,11 +968,11 @@ class Install:
 			return
 
 		if attempt >= MAX_ATTEMPTS:
-			debug("[Custom_families install] Timeout waiting for '{}' install; enabling Server anyway.".format(first_fam.path))
+			debug("[Custom_families install] Timeout waiting for '{}' Installstate; enabling Server anyway.".format(first_fam.path))
 			self._enable_server_cook(target)
 			return
 
-		self._schedule_server_enable_poll(target_path, attempt + 1)
+		self._schedule_server_enable_poll(attempt + 1)
 
 	def _pulse_create_family(self, custom_families_comp):
 		# Skip when Local already has at least one family — the .tox may ship
