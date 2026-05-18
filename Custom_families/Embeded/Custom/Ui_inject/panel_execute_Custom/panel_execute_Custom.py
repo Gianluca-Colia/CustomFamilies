@@ -361,16 +361,29 @@ def _schedule_place(family_op, display_name, panel_value):
         return False
 
 def _target_index(op_fam, nodetable, panel_value, search_string, op_create):
-    # Search mode: the widget renders 'destil' as a single column, so panel_value
-    # is directly the destil row index.
+    # Search mode: the widget renders destil as a single column but in REVERSE
+    # row order — the upstream sort1 DAT sorts descending, so destil row 1 is
+    # the last visible item and destil row (numRows - 1) is the first one. The
+    # panel reports panel_value as the visible position from the top, where
+    # visible 0 is the defLabel group header (not clickable) and visible 1..N
+    # are the matching operators. So the destil row we actually want is
+    # (destil.numRows - panel_value). The -934 sentinel means "first match",
+    # which is the first visible op = destil row (numRows - 1).
     if search_string or panel_value == -934:
         destil = op_create.op('nodetable/destil')
-        row_clicked = 1 if panel_value == -934 else panel_value
-        if destil is None or destil.numRows <= row_clicked:
+        if destil is None or destil.numRows < 2:
             return -1
-        selected_name = destil[row_clicked, 0].val
+        if panel_value == -934:
+            destil_row = destil.numRows - 1
+        else:
+            destil_row = destil.numRows - panel_value
+        if destil_row <= 0 or destil_row >= destil.numRows:
+            return -1
+        selected_name = str(destil[destil_row, 0].val)
+        if not selected_name:
+            return -1
         for i in range(1, op_fam.numRows):
-            if op_fam[i, 'name'].val == selected_name:
+            if str(op_fam[i, 'name'].val) == selected_name:
                 return i
         return -1
 
