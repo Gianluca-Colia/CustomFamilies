@@ -211,6 +211,16 @@ def _row_matches(table_op, row_index, query):
     return False
 
 
+def _type_column_index(table_op):
+    try:
+        for c in range(table_op.numCols):
+            if str(table_op[0, c].val) == 'type':
+                return c
+    except Exception:
+        pass
+    return -1
+
+
 def _copy_filtered_op_fam(scriptOp, table_op, query):
     if table_op is None:
         _copy_header(scriptOp)
@@ -220,9 +230,13 @@ def _copy_filtered_op_fam(scriptOp, table_op, query):
     if not query:
         return _copy_table(scriptOp, table_op)
 
+    # Native-style search: keep every row visible, but for non-matching operators
+    # rewrite their 'type' column with a 'Disable' suffix
+    # (e.g. 'layouts/<fam>/defFilter' -> 'layouts/<fam>/defFilterDisable') so the
+    # dialog greys them out instead of hiding them. Group headers (defLabel) are
+    # always kept; they're never matched against the query.
+    type_col = _type_column_index(table_op)
     rows = [_row_values(table_op, 0)]
-    group_row = None
-    group_added = False
     match_count = 0
 
     for row_index in range(1, table_op.numRows):
@@ -231,20 +245,18 @@ def _copy_filtered_op_fam(scriptOp, table_op, query):
         except Exception:
             row_type = ''
 
+        row_values = _row_values(table_op, row_index)
+
         if row_type.endswith('defLabel'):
-            group_row = _row_values(table_op, row_index)
-            group_added = False
+            rows.append(row_values)
             continue
 
-        if not _row_matches(table_op, row_index, query):
-            continue
+        if _row_matches(table_op, row_index, query):
+            match_count += 1
+        elif type_col >= 0 and row_type and not row_type.endswith('Disable'):
+            row_values[type_col] = row_type + 'Disable'
 
-        if group_row is not None and not group_added:
-            rows.append(group_row)
-            group_added = True
-
-        rows.append(_row_values(table_op, row_index))
-        match_count += 1
+        rows.append(row_values)
 
     scriptOp.clear()
     for row in rows:
