@@ -349,11 +349,6 @@ def cook(scriptOp):
         return
 
     if current_family == family_name:
-        if search_string and not _copy_filtered_op_fam(scriptOp, op_fam, search_string):
-            _copy_input_or_header(scriptOp)
-            _store_state(scriptOp, state_key)
-            return
-
         if search_string:
             _copy_filtered_op_fam(scriptOp, op_fam, search_string)
         else:
