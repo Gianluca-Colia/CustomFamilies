@@ -1,4 +1,4 @@
-﻿# CF search watch — ricucina fam_script quando cambia la search bar.
+# CF search watch — ricucina fam_script quando cambia la search bar.
 # Posizionato dentro: /ui/dialogs/menu_op/nodetable/inject_<FAM>/cf_search_watch
 # Bind del par.dat: /ui/dialogs/menu_op/search/string
 
