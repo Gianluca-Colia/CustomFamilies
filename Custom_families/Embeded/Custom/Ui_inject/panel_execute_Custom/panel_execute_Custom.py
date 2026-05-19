@@ -361,39 +361,47 @@ def _schedule_place(family_op, display_name, panel_value):
         return False
 
 def _target_index(op_fam, nodetable, panel_value, search_string, op_create):
-    # Search mode: the widget renders destil as a single column but in REVERSE
-    # row order — the upstream sort1 DAT sorts descending, so destil row 1 is
-    # the last visible item and destil row (numRows - 1) is the first one. The
-    # panel reports panel_value as the visible position from the top, where
-    # visible 0 is the defLabel group header (not clickable) and visible 1..N
-    # are the matching operators. So the destil row we actually want is
-    # (destil.numRows - panel_value). The -934 sentinel means "first match",
-    # which is the first visible op = destil row (numRows - 1).
+    # Search mode: we try two lookup paths and return the first that hits.
+    #
+    # 1) destil-based lookup (stock TD path). When the user types a query,
+    #    TD's nodetable pipeline filters `destil` to only the rows whose
+    #    `type` column does NOT end with 'Disable' — i.e. the rows that
+    #    matched the query. In our custom family, fam_script_callbacks
+    #    adds the 'Disable' suffix to non-matching rows, so destil ends
+    #    up containing only the matches (or empty if nothing matches).
+    #    For a click on a *matching* row this path resolves the name
+    #    cleanly.
+    #
+    # 2) Grid math fallback on op_fam directly. The dialog actually keeps
+    #    rendering the *full* grid (matching + greyed rows), so the user
+    #    can also click greyed rows. destil doesn't know about those, so
+    #    we fall back to the same panel_value -> op_fam row mapping used
+    #    in non-search mode. This lets users spawn any operator they see,
+    #    even when its row is greyed.
+    #
+    # The -934 sentinel still means "first match"; it only makes sense
+    # for the destil path.
     if search_string or panel_value == -934:
         destil = op_create.op('nodetable/destil')
-        if destil is None or destil.numRows < 2:
-            return -1
-        if panel_value == -934:
-            destil_row = destil.numRows - 1
-        else:
-            destil_row = destil.numRows - panel_value
-        if destil_row <= 0 or destil_row >= destil.numRows:
-            return -1
-        selected_name = str(destil[destil_row, 0].val)
-        if not selected_name:
-            return -1
-        # Rows that don't match the active search query are visually greyed
-        # by fam_script_callbacks via a 'Disable' suffix on their `type`
-        # column. We intentionally do NOT block placement of those rows —
-        # the user can still click them to spawn the operator. The greyed
-        # styling stays as a hint of which rows match the query, but it's
-        # no longer a hard gate on the click handler.
-        for i in range(1, op_fam.numRows):
-            if str(op_fam[i, 'name'].val) == selected_name:
-                return i
-        return -1
+        if destil is not None and destil.numRows >= 2:
+            if panel_value == -934:
+                destil_row = destil.numRows - 1
+            else:
+                destil_row = destil.numRows - panel_value
+            if destil_row > 0 and destil_row < destil.numRows:
+                selected_name = str(destil[destil_row, 0].val)
+                if selected_name:
+                    for i in range(1, op_fam.numRows):
+                        if str(op_fam[i, 'name'].val) == selected_name:
+                            return i
 
-    # Grid mode: the nodetable widget lays out OP_fam linearly (column-major),
+        # destil-path missed (greyed row, empty destil, or name mismatch).
+        # Fall through to grid math below. If panel_value is the -934
+        # sentinel we have no row to point at, so bail out.
+        if panel_value == -934:
+            return -1
+
+    # Grid mode (also reached as fallback in search mode): the nodetable widget lays out OP_fam linearly (column-major),
     # counting every row — including defLabel headers and empty padding rows —
     # as one slot. So panel_value N maps to OP_fam row (N + 1); the +1 skips
     # the column-header row at index 0. This holds for any layout: groups
