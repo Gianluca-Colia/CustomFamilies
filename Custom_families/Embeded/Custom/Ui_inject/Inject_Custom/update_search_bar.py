@@ -18,9 +18,23 @@ def _safe_op(path):
         return None
 
 
+CF_DEBUG = True  # set False once verified
+
+
+def _dbg(*args):
+    if not CF_DEBUG:
+        return
+    try:
+        print('[update_search_bar]', *args)
+    except Exception:
+        pass
+
+
 def _force_recook_injects():
+    _dbg('fire')
     parent_comp = _safe_op(NODETABLE_PATH)
     if parent_comp is None:
+        _dbg('no nodetable, abort')
         return
     try:
         children = list(parent_comp.children)
@@ -62,21 +76,37 @@ def _force_recook_injects():
             pass
 
 
+def _watched_value(dat):
+    if dat is None:
+        return '<dat=None>'
+    try:
+        if dat.numRows == 1 and dat.numCols == 1:
+            return repr(str(dat[0, 0].val))
+        return repr(str(dat.text))
+    except Exception as e:
+        return '<err: {}>'.format(e)
+
+
 def onTableChange(dat):
+    _dbg('onTableChange  watched={}  value={}'.format(dat.path if dat else None, _watched_value(dat)))
     _force_recook_injects()
 
 
 def onRowChange(dat, rows):
+    _dbg('onRowChange    watched={}  rows={}  value={}'.format(dat.path if dat else None, rows, _watched_value(dat)))
     _force_recook_injects()
 
 
 def onColChange(dat, cols):
+    _dbg('onColChange    watched={}  cols={}  value={}'.format(dat.path if dat else None, cols, _watched_value(dat)))
     _force_recook_injects()
 
 
 def onCellChange(dat, cells, prev):
+    _dbg('onCellChange   watched={}  prev={!r}  value={}'.format(dat.path if dat else None, prev, _watched_value(dat)))
     _force_recook_injects()
 
 
 def onSizeChange(dat):
+    _dbg('onSizeChange   watched={}  value={}'.format(dat.path if dat else None, _watched_value(dat)))
     _force_recook_injects()
