@@ -4311,47 +4311,6 @@ class GenericInstallerEXT:
 			pass
 		return ''
 
-	def _get_inject_families_callback_source_text(self):
-		text = ''
-		for rel_parts in (
-			('Ui_inject', 'Inject_Custom', 'script1_callbacks.py'),
-			('Ui_inject', 'Inject_custom', 'script1_callbacks.py'),
-			('Ui_scripts', 'Inject_custom', 'script1_callbacks.py'),
-			('Ui_scripts', 'inject_Custom', 'script1_callbacks.py'),
-		):
-			text = self._read_plugin_source_file(*rel_parts)
-			if text:
-				break
-		for callback_path in (
-			'Ui_inject/Inject_Custom/script1_callbacks',
-			'Ui_inject/Inject_custom/script1_callbacks',
-			'Ui_scripts/inject_Custom/script1_callbacks',
-			'Ui_scripts/Inject_custom/script1_callbacks',
-		):
-			if text:
-				break
-			try:
-				source_dat = self.ownerComp.op(callback_path)
-			except Exception:
-				source_dat = None
-			if source_dat is None:
-				continue
-			text = self._read_synced_dat_text(source_dat)
-			if text:
-				break
-		if not text:
-			return ''
-		required_tokens = (
-			'def _copy_input_or_header',
-			'def _input_is_operator_table',
-			'def _read_current_family',
-			'def cook(scriptOp):',
-			'if _input_is_operator_table(scriptOp):',
-		)
-		if all(token in text for token in required_tokens):
-			return text
-		return ''
-
 	def _prepare_inject_template_instance(self, inject_comp):
 		if inject_comp is None:
 			return
@@ -4361,7 +4320,6 @@ class GenericInstallerEXT:
 		inner_inject = None
 		callbacks_dat = None
 		inner_families = None
-		inner_families_callbacks = None
 		try:
 			for child in inject_comp.findChildren(maxDepth=2):
 				if str(child.name).startswith('inject_'):
@@ -4370,13 +4328,10 @@ class GenericInstallerEXT:
 					inner_families = child
 				elif str(child.name) == 'fam_script_callbacks':
 					callbacks_dat = child
-				elif str(child.name) == 'script1_callbacks':
-					inner_families_callbacks = child
 		except Exception:
 			inner_inject = None
 			callbacks_dat = None
 			inner_families = None
-			inner_families_callbacks = None
 
 		if inner_inject is not None:
 			try:
@@ -4407,36 +4362,7 @@ class GenericInstallerEXT:
 
 		if inner_families is not None:
 			try:
-				if hasattr(inner_families.par, 'callbacks'):
-					if inner_families_callbacks is not None:
-						inner_families.par.callbacks.expr = "op('script1_callbacks')"
-			except Exception:
-				pass
-			try:
 				inner_families.allowCooking = True
-			except Exception:
-				pass
-
-		if inner_families_callbacks is not None:
-			try:
-				callback_text = self._get_inject_families_callback_source_text()
-				if callback_text:
-					inner_families_callbacks.text = callback_text
-					try:
-						inner_families_callbacks.store('cf_last_state', None)
-					except Exception:
-						pass
-					self._trace("Refreshed internal families callback for '{}'".format(self.family_name))
-				else:
-					self._trace("inject families callback source missing/invalid for '{}'".format(self.family_name))
-			except Exception as e:
-				self._trace("inject families callback patch failed for '{}': {}".format(self.family_name, e))
-			try:
-				if hasattr(inner_families.par, 'bypass'):
-					inner_families.par.bypass.expr = ''
-					inner_families.par.bypass = 0
-				else:
-					inner_families.bypass = False
 			except Exception:
 				pass
 
