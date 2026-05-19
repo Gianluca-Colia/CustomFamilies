@@ -174,16 +174,18 @@ def _input_family(scriptOp):
 
 
 def _search_string(scriptOp):
-    try:
-        value = str(scriptOp.par.Search.eval()).strip()
-        if value:
-            return value
-    except Exception:
-        pass
-
+    # Source of truth is the search bar's Text DAT — it's what the user sees.
+    # par.Search is read only as a fallback because TD's native dialog pushes
+    # stale values into it (e.g. on focus loss) without clearing them when
+    # the bar is emptied, which would falsely filter the table.
     search_op = _safe_op(SEARCH_STRING_PATH)
+    if search_op is not None:
+        try:
+            return str(search_op.text).strip()
+        except Exception:
+            pass
     try:
-        return str(search_op.text).strip() if search_op is not None else ''
+        return str(scriptOp.par.Search.eval()).strip()
     except Exception:
         return ''
 
