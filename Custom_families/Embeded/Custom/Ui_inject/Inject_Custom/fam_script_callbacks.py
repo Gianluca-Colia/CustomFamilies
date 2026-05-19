@@ -20,7 +20,7 @@ DEFAULT_FAMILY_NAME = 'Custom'
 SOURCE_OPERATOR_PATH = '/project1/Custom'
 CUSTOM_OPERATORS_PATH = '../Custom_operators'
 CURRENT_TABLE_PATH = '/ui/dialogs/menu_op/current'
-SEARCH_STRING_PATH = '/ui/dialogs/menu_op/search/string'
+SEARCH_STRING_PATH = '/ui/dialogs/menu_op/searchtext'
 OP_FAM_TABLE_NAME = 'OP_fam'
 
 TABLE_HEADER = [
@@ -189,15 +189,21 @@ def _input_family(scriptOp):
 
 
 def _search_string(scriptOp):
-    # Source of truth is the search bar's Text DAT — it's what the user sees.
-    # par.Search is read only as a fallback because TD's native dialog pushes
-    # stale values into it (e.g. on focus loss) without clearing them when
-    # the bar is emptied, which would falsely filter the table.
+    # Source of truth is /ui/dialogs/menu_op/searchtext — the LIVE 1x1 table
+    # DAT that updates on every keystroke (the inject template binds the
+    # same DAT via parent(2).op('searchtext')[0,0]).
+    # /ui/dialogs/menu_op/search/string is stale: it is updated only on
+    # certain UI events (commit / focus loss), so reading it can return
+    # 'zzz' even when the search bar visually shows ''.
+    # par.Search is kept as a last-resort fallback only.
     text_dat_value = None
     search_op = _safe_op(SEARCH_STRING_PATH)
     if search_op is not None:
         try:
-            text_dat_value = str(search_op.text).strip()
+            if getattr(search_op, 'numRows', 0) >= 1 and getattr(search_op, 'numCols', 0) >= 1:
+                text_dat_value = str(search_op[0, 0].val).strip()
+            else:
+                text_dat_value = str(search_op.text).strip()
         except Exception:
             text_dat_value = None
 
@@ -207,7 +213,7 @@ def _search_string(scriptOp):
     except Exception:
         par_value = None
 
-    _dbg("  sources: search/string DAT={!r}  par.Search={!r}".format(text_dat_value, par_value))
+    _dbg("  sources: searchtext DAT={!r}  par.Search={!r}".format(text_dat_value, par_value))
 
     if text_dat_value is not None:
         return text_dat_value
