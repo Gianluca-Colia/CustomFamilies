@@ -4312,33 +4312,28 @@ class GenericInstallerEXT:
 		return ''
 
 	def _prepare_inject_template_instance(self, inject_comp):
-		# Disabled by design.
+		# Customise the runtime inject COMP that was just cloned into
+		# menu_op for this family. Per-family knobs that MUST be set:
+		#  - rename the inner Script DAT 'inject_Custom' -> 'inject_<family>'
+		#  - rewire its callbacks parameter
+		#  - set switch1.index expression to match this family's name
+		#  - clear cf_last_state cache, ensure allowCooking, bypass=0
 		#
-		# Previously this method rewrote the runtime fam_script_callbacks
-		# Text DAT inside menu_op/.../inject_<family> with a re.sub-patched
-		# copy of the template text and then forced `par.file = ''` on it.
-		# Side effect of TD's copy(..., includeDocked=True) was that the
-		# par.file clear propagated back onto the *template* DAT inside the
-		# family COMP, wiping its file-sync link to AppData and freezing
-		# the template at whatever text was baked into the .tox. Manual
-		# reloads from disk then had no effect.
-		#
-		# The plugin template now wires fam_script_callbacks (and
-		# update_search_bar) via Python expressions / par.file pointing
-		# directly at the AppData copies, so the runtime picks them up
-		# without any text rewriting at install time. Making this method
-		# a no-op preserves the call site at _install_inject_family while
-		# removing the destructive side effect.
-		return
-
-		# --- legacy body kept for reference, not executed -------------
+		# What this method NO LONGER does (and why): it used to also
+		# re.sub-patch the runtime fam_script_callbacks Text DAT and then
+		# force `par.file = ''` on it. Due to TD's copy(..., includeDocked=True)
+		# the par.file clear bled back onto the *template* DAT inside the
+		# family COMP, killing its file-sync link to AppData and re-introducing
+		# the search-bar bug after every reinstall. Now the script is kept
+		# file-synced — _family_name_from_context() in fam_script_callbacks
+		# already derives the family name dynamically by walking the parent
+		# chain, so the re.sub patches were redundant anyway.
 		if inject_comp is None:
 			return
 
 		inject_name = self._inject_op_name()
 		family_name = self._sanitize_family_name(self.family_name)
 		inner_inject = None
-		callbacks_dat = None
 		inner_families = None
 		try:
 			for child in inject_comp.findChildren(maxDepth=2):
@@ -4346,11 +4341,8 @@ class GenericInstallerEXT:
 					inner_inject = child
 				elif str(child.name) == 'families':
 					inner_families = child
-				elif str(child.name) == 'fam_script_callbacks':
-					callbacks_dat = child
 		except Exception:
 			inner_inject = None
-			callbacks_dat = None
 			inner_families = None
 
 		if inner_inject is not None:
@@ -4385,33 +4377,6 @@ class GenericInstallerEXT:
 				inner_families.allowCooking = True
 			except Exception:
 				pass
-
-		if callbacks_dat is not None:
-			try:
-				source_callbacks = self._script('fam_script_callbacks')
-				callback_text = source_callbacks.text if source_callbacks is not None else callbacks_dat.text
-				callback_text = re.sub(
-					r"(?m)^DEFAULT_FAMILY_NAME\s*=\s*.+$",
-					"DEFAULT_FAMILY_NAME = {!r}".format(family_name or self.ownerComp.name),
-					callback_text,
-				)
-				callback_text = re.sub(
-					r"(?m)^SOURCE_OPERATOR_PATH\s*=\s*.+$",
-					"SOURCE_OPERATOR_PATH = {!r}".format(self.ownerComp.path),
-					callback_text,
-				)
-				callback_text = re.sub(
-					r"(?m)^CUSTOM_OPERATORS_PATH\s*=\s*.+$",
-					"CUSTOM_OPERATORS_PATH = {!r}".format('../Custom_operators'),
-					callback_text,
-				)
-				callbacks_dat.text = callback_text
-				try:
-					callbacks_dat.par.file = ''
-				except Exception:
-					pass
-			except Exception as e:
-				self._trace("inject template callback patch failed for '{}': {}".format(self.family_name, e))
 
 		try:
 			switch_op = inject_comp.op('switch1')
