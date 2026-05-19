@@ -192,7 +192,16 @@ def _rebuild_table():
         ])
 
 
-# Public alias — can be called from anywhere to force a rebuild.
+# Public functions — callable from anywhere (Textport, execute1 init,
+# installer, etc.) to force a refresh of Custom_operator_list.
+#
+# Both names point at the same implementation. `Update()` is the
+# conventional, capitalized public entry point; `rebuild()` is kept
+# for backward compatibility with earlier call sites.
+def Update():
+    _rebuild_table()
+
+
 def rebuild():
     _rebuild_table()
 
