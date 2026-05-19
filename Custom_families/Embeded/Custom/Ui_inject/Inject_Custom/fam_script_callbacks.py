@@ -4,7 +4,7 @@
 # Set CF_SEARCH_DEBUG = True to print a trace of every cook() call into
 # the TouchDesigner Textport. Useful to diagnose stale-search bugs.
 # Remember to set it back to False when done.
-CF_SEARCH_DEBUG = True
+CF_SEARCH_DEBUG = False
 
 
 def _dbg(msg):
