@@ -23,6 +23,7 @@ MANAGED_SCRIPT_BINDINGS = (
 	(('Ui_scripts/fam_create_callback',), os.path.join('Ui_scripts', 'fam_create_callback.py')),
 	(('Ui_scripts/fam_panel_execute',), os.path.join('Ui_scripts', 'fam_panel_execute.py')),
 	(('Ui_scripts/fam_script_callbacks',), os.path.join('Ui_scripts', 'fam_script_callbacks.py')),
+	(('Ui_inject/Inject_Custom/update_search_bar', 'Ui_inject/Inject_custom/update_search_bar'), os.path.join('Ui_inject', 'Inject_Custom', 'update_search_bar.py')),
 	(('Parameter/About_page_DAT_execute', 'Parameters/About_page_DAT_execute'), os.path.join('Parameters', 'About_page_DAT_execute.py')),
 	(('Parameter/Auto_install_execute', 'Parameters/Auto_install_execute'), os.path.join('Parameters', 'Auto_install_execute.py')),
 	(('Parameter/Change_Color_DAT_execute', 'Parameters/Change_Color_DAT_execute'), os.path.join('Parameters', 'Change_Color_DAT_execute.py')),
