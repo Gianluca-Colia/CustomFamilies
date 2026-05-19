@@ -4312,6 +4312,26 @@ class GenericInstallerEXT:
 		return ''
 
 	def _prepare_inject_template_instance(self, inject_comp):
+		# Disabled by design.
+		#
+		# Previously this method rewrote the runtime fam_script_callbacks
+		# Text DAT inside menu_op/.../inject_<family> with a re.sub-patched
+		# copy of the template text and then forced `par.file = ''` on it.
+		# Side effect of TD's copy(..., includeDocked=True) was that the
+		# par.file clear propagated back onto the *template* DAT inside the
+		# family COMP, wiping its file-sync link to AppData and freezing
+		# the template at whatever text was baked into the .tox. Manual
+		# reloads from disk then had no effect.
+		#
+		# The plugin template now wires fam_script_callbacks (and
+		# update_search_bar) via Python expressions / par.file pointing
+		# directly at the AppData copies, so the runtime picks them up
+		# without any text rewriting at install time. Making this method
+		# a no-op preserves the call site at _install_inject_family while
+		# removing the destructive side effect.
+		return
+
+		# --- legacy body kept for reference, not executed -------------
 		if inject_comp is None:
 			return
 
