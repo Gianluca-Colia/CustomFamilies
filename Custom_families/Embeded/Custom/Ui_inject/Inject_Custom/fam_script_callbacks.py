@@ -1,6 +1,21 @@
 # me - questo DAT
 # scriptOp - l'OP che sta cuocendo
 
+# Set CF_SEARCH_DEBUG = True to print a trace of every cook() call into
+# the TouchDesigner Textport. Useful to diagnose stale-search bugs.
+# Remember to set it back to False when done.
+CF_SEARCH_DEBUG = True
+
+
+def _dbg(msg):
+    if not CF_SEARCH_DEBUG:
+        return
+    try:
+        print('[fam_search]', msg)
+    except Exception:
+        pass
+
+
 DEFAULT_FAMILY_NAME = 'Custom'
 SOURCE_OPERATOR_PATH = '/project1/Custom'
 CUSTOM_OPERATORS_PATH = '../Custom_operators'
@@ -178,16 +193,25 @@ def _search_string(scriptOp):
     # par.Search is read only as a fallback because TD's native dialog pushes
     # stale values into it (e.g. on focus loss) without clearing them when
     # the bar is emptied, which would falsely filter the table.
+    text_dat_value = None
     search_op = _safe_op(SEARCH_STRING_PATH)
     if search_op is not None:
         try:
-            return str(search_op.text).strip()
+            text_dat_value = str(search_op.text).strip()
         except Exception:
-            pass
+            text_dat_value = None
+
+    par_value = None
     try:
-        return str(scriptOp.par.Search.eval()).strip()
+        par_value = str(scriptOp.par.Search.eval()).strip()
     except Exception:
-        return ''
+        par_value = None
+
+    _dbg("  sources: search/string DAT={!r}  par.Search={!r}".format(text_dat_value, par_value))
+
+    if text_dat_value is not None:
+        return text_dat_value
+    return par_value or ''
 
 
 def _row_values(table_op, row_index):
@@ -341,22 +365,32 @@ def onPulse(par):
 
 
 def cook(scriptOp):
+    _dbg("cook() on {}".format(getattr(scriptOp, 'path', '?')))
     current_family = _current_family() or _input_family(scriptOp)
     family_name = _family_name()
     op_fam = _op_fam_table()
     search_string = _search_string(scriptOp)
     state_key = _state_key(scriptOp, current_family, family_name, search_string, op_fam)
 
+    _dbg("  current_family={!r} family_name={!r} search_string={!r} op_fam={}".format(
+        current_family, family_name, search_string,
+        op_fam.path if op_fam is not None else None,
+    ))
+
     if _same_state(scriptOp, state_key):
+        _dbg("  -> same state, skip recook")
         return
 
     if current_family == family_name:
         if search_string:
+            _dbg("  -> branch: filtered ({} rows in op_fam)".format(op_fam.numRows if op_fam is not None else -1))
             _copy_filtered_op_fam(scriptOp, op_fam, search_string)
         else:
+            _dbg("  -> branch: full copy")
             _copy_table(scriptOp, op_fam)
         _store_state(scriptOp, state_key)
         return
 
+    _dbg("  -> branch: passthrough (family mismatch)")
     _copy_input_or_header(scriptOp)
     _store_state(scriptOp, state_key)
