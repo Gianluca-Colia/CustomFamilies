@@ -382,13 +382,12 @@ def _target_index(op_fam, nodetable, panel_value, search_string, op_create):
         selected_name = str(destil[destil_row, 0].val)
         if not selected_name:
             return -1
-        # If the row is search-disabled (greyed out), don't place anything.
-        try:
-            row_type = str(destil[destil_row, 'type'].val)
-        except Exception:
-            row_type = ''
-        if row_type.endswith('Disable'):
-            return -1
+        # Rows that don't match the active search query are visually greyed
+        # by fam_script_callbacks via a 'Disable' suffix on their `type`
+        # column. We intentionally do NOT block placement of those rows —
+        # the user can still click them to spawn the operator. The greyed
+        # styling stays as a hint of which rows match the query, but it's
+        # no longer a hard gate on the click handler.
         for i in range(1, op_fam.numRows):
             if str(op_fam[i, 'name'].val) == selected_name:
                 return i
