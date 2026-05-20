@@ -1,7 +1,12 @@
-﻿"""
-Execute DAT
+"""
+Execute DAT — Install_window onCreate hook.
 
-me - this DAT
+Relocates the host Custom_families COMP under /ui/Plugins on first
+insertion, then opens the install dialog. Images are baked directly
+into the .tox, so they need no network fetch. The Font folder still
+has to live on disk (TouchDesigner can't render fonts from embedded
+.tox assets) — we prefetch only that single folder before opening the
+dialog so its text labels render correctly.
 
 Make sure the corresponding toggle is enabled in the Execute DAT.
 """
@@ -13,22 +18,21 @@ import urllib.request
 import urllib.error
 import zipfile
 
+
+# Prefetch limited to Font/ only. Images and the rest of the plugin are
+# either embedded in the .tox or downloaded later by Installer/Install
+# when the user clicks Install.
 ASSETS_REPO_ZIP_URL = 'https://github.com/Gianluca-Colia/CustomFamilies/archive/refs/heads/main.zip'
-# app.preferencesFolder is the TD prefs folder, cross-platform.
 ASSETS_DISK_ROOT = os.path.join(app.preferencesFolder, 'Custom families')
-ASSETS_PREFETCH_DIRS = ('Font', 'Images')
+ASSETS_PREFETCH_DIRS = ('Font',)
 
 
 def onStart():
-	"""
-	Called when the project starts.
-	"""
 	return
+
 
 def onCreate():
 	"""
-	Called when the DAT is created.
-
 	Flow:
 	  1. Resolve the host (Custom_families root = parent(3)).
 	  2. If the host is NOT yet inside /ui/Plugins:
@@ -37,7 +41,8 @@ def onCreate():
 	       - destroy the original (deferred, so this script completes safely)
 	     The copy's own Install_window/execute1.onCreate will fire from the
 	     new location and fall into branch (3) below.
-	  3. If the host IS inside /ui/Plugins: cook + pulse Winopen to open dialog.
+	  3. If the host IS inside /ui/Plugins: prefetch Font/, cook + pulse
+	     Winopen to open the dialog.
 	"""
 	target = parent()       # Install_window
 	host = parent(3)        # Custom_families root
@@ -80,13 +85,11 @@ def onCreate():
 		run("args[0].destroy() if args[0] is not None else None", host, delayFrames=2)
 		return
 
-	# Branch (3): already in /ui/Plugins → open the dialog.
-	# Make sure the Font and Images folders are on disk BEFORE opening the
-	# window, otherwise the dialog renders without its fonts/images. The
-	# full Custom_families install (which Install.Run drives) will later
-	# overwrite this prefetch — this is just the minimum viable boot for
-	# the dialog to look right.
-	_prefetch_install_window_assets()
+	# Branch (3): already in /ui/Plugins → make sure Font/ is on disk, then
+	# open the dialog. The prefetch is idempotent: if Font/ already exists
+	# it returns immediately, so the window opens instantly on subsequent
+	# inserts.
+	_prefetch_font_assets()
 
 	try:
 		target.cook(force=True)
@@ -104,14 +107,13 @@ def onCreate():
 	return
 
 
-def _prefetch_install_window_assets():
-	"""Ensure Font/ and Images/ exist at LOCALAPPDATA before the install
-	dialog opens. Idempotent: skip when both folders are already on disk.
+def _prefetch_font_assets():
+	"""Ensure Font/ exists at LOCALAPPDATA before the install dialog opens.
 
-	Strategy: download the repo zip, extract only the Font/ and Images/
-	subtrees, drop the zip. Same SSL fallback as Install._download_zip
-	(verified context first, unverified retry on SSL error, User-Agent
-	header to avoid GitHub 403 on UA-less requests).
+	Idempotent: skip when Font/ is already on disk. Strategy: download the
+	repo zip, extract only the Font/ subtree, drop the zip. Same SSL
+	fallback as Installer/Install._download_zip (verified context first,
+	unverified retry on SSL error, User-Agent header to avoid GitHub 403).
 	"""
 	if all(os.path.isdir(os.path.join(ASSETS_DISK_ROOT, name))
 	       for name in ASSETS_PREFETCH_DIRS):
@@ -123,7 +125,7 @@ def _prefetch_install_window_assets():
 		debug('[Install_window prefetch] mkdir failed: {}'.format(exc))
 		return
 
-	zip_path = os.path.join(ASSETS_DISK_ROOT, '_assets.zip')
+	zip_path = os.path.join(ASSETS_DISK_ROOT, '_font_assets.zip')
 	try:
 		_download_to(ASSETS_REPO_ZIP_URL, zip_path)
 	except Exception as exc:
@@ -195,52 +197,28 @@ def _extract_subdirs(zip_path, dest_root, allowed_top_dirs):
 
 
 def onExit():
-	"""
-	Called when the project exits.
-	"""
 	return
+
 
 def onFrameStart(frame: int):
-	"""
-	Called at the start of each frame.
-	
-	Args:
-		frame: The current frame number
-	"""
 	return
+
 
 def onFrameEnd(frame: int):
-	"""
-	Called at the end of each frame.
-	
-	Args:
-		frame: The current frame number
-	"""
 	return
+
 
 def onPlayStateChange(state: bool):
-	"""
-	Called when the play state changes.
-	
-	Args:
-		state: False if the timeline was just paused
-	"""
 	return
+
 
 def onDeviceChange():
-	"""
-	Called when a device change occurs.
-	"""
 	return
+
 
 def onProjectPreSave():
-	"""
-	Called before the project is saved.
-	"""
 	return
 
+
 def onProjectPostSave():
-	"""
-	Called after the project is saved.
-	"""
 	return

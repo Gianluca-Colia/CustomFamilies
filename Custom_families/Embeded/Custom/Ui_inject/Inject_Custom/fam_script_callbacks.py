@@ -5,7 +5,7 @@ DEFAULT_FAMILY_NAME = 'Custom'
 SOURCE_OPERATOR_PATH = '/project1/Custom'
 CUSTOM_OPERATORS_PATH = '../Custom_operators'
 CURRENT_TABLE_PATH = '/ui/dialogs/menu_op/current'
-SEARCH_STRING_PATH = '/ui/dialogs/menu_op/search/string'
+SEARCH_STRING_PATH = '/ui/dialogs/menu_op/searchtext'
 OP_FAM_TABLE_NAME = 'OP_fam'
 
 TABLE_HEADER = [
@@ -174,16 +174,29 @@ def _input_family(scriptOp):
 
 
 def _search_string(scriptOp):
-    try:
-        value = str(scriptOp.par.Search.eval()).strip()
-        if value:
-            return value
-    except Exception:
-        pass
-
+    # Source of truth is /ui/dialogs/menu_op/searchtext — the LIVE 1x1 table
+    # DAT that updates on every keystroke (the inject template binds the
+    # same DAT via parent(2).op('searchtext')[0,0]).
+    # /ui/dialogs/menu_op/search/string is stale: it is updated only on
+    # certain UI events (commit / focus loss), so reading it can return
+    # 'zzz' even when the search bar visually shows ''.
+    # par.Search is kept as a last-resort fallback only.
+    text_dat_value = None
     search_op = _safe_op(SEARCH_STRING_PATH)
+    if search_op is not None:
+        try:
+            if getattr(search_op, 'numRows', 0) >= 1 and getattr(search_op, 'numCols', 0) >= 1:
+                text_dat_value = str(search_op[0, 0].val).strip()
+            else:
+                text_dat_value = str(search_op.text).strip()
+        except Exception:
+            text_dat_value = None
+
+    if text_dat_value is not None:
+        return text_dat_value
+
     try:
-        return str(search_op.text).strip() if search_op is not None else ''
+        return str(scriptOp.par.Search.eval()).strip()
     except Exception:
         return ''
 
@@ -211,6 +224,16 @@ def _row_matches(table_op, row_index, query):
     return False
 
 
+def _type_column_index(table_op):
+    try:
+        for c in range(table_op.numCols):
+            if str(table_op[0, c].val) == 'type':
+                return c
+    except Exception:
+        pass
+    return -1
+
+
 def _copy_filtered_op_fam(scriptOp, table_op, query):
     if table_op is None:
         _copy_header(scriptOp)
@@ -220,9 +243,13 @@ def _copy_filtered_op_fam(scriptOp, table_op, query):
     if not query:
         return _copy_table(scriptOp, table_op)
 
+    # Native-style search: keep every row visible, but for non-matching operators
+    # rewrite their 'type' column with a 'Disable' suffix
+    # (e.g. 'layouts/<fam>/defFilter' -> 'layouts/<fam>/defFilterDisable') so the
+    # dialog greys them out instead of hiding them. Group headers (defLabel) are
+    # always kept; they're never matched against the query.
+    type_col = _type_column_index(table_op)
     rows = [_row_values(table_op, 0)]
-    group_row = None
-    group_added = False
     match_count = 0
 
     for row_index in range(1, table_op.numRows):
@@ -231,20 +258,18 @@ def _copy_filtered_op_fam(scriptOp, table_op, query):
         except Exception:
             row_type = ''
 
+        row_values = _row_values(table_op, row_index)
+
         if row_type.endswith('defLabel'):
-            group_row = _row_values(table_op, row_index)
-            group_added = False
+            rows.append(row_values)
             continue
 
-        if not _row_matches(table_op, row_index, query):
-            continue
+        if _row_matches(table_op, row_index, query):
+            match_count += 1
+        elif type_col >= 0 and row_type and not row_type.endswith('Disable'):
+            row_values[type_col] = row_type + 'Disable'
 
-        if group_row is not None and not group_added:
-            rows.append(group_row)
-            group_added = True
-
-        rows.append(_row_values(table_op, row_index))
-        match_count += 1
+        rows.append(row_values)
 
     scriptOp.clear()
     for row in rows:
@@ -337,11 +362,6 @@ def cook(scriptOp):
         return
 
     if current_family == family_name:
-        if search_string and not _copy_filtered_op_fam(scriptOp, op_fam, search_string):
-            _copy_input_or_header(scriptOp)
-            _store_state(scriptOp, state_key)
-            return
-
         if search_string:
             _copy_filtered_op_fam(scriptOp, op_fam, search_string)
         else:

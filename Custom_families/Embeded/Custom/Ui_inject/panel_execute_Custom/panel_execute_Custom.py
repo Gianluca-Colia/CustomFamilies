@@ -361,47 +361,66 @@ def _schedule_place(family_op, display_name, panel_value):
         return False
 
 def _target_index(op_fam, nodetable, panel_value, search_string, op_create):
-    rows_per_col = nodetable.par.tablerows.eval()
-
-    group_starts = []
-    group_sizes = []
-    current_group = -1
-    operator_count = 0
-    for row_index in range(op_fam.numRows):
-        if op_fam[row_index, 'type'].val.endswith('defLabel'):
-            if current_group >= 0:
-                group_sizes.append(operator_count)
-            group_starts.append(row_index)
-            current_group += 1
-            operator_count = 0
-        elif op_fam[row_index, 'name'].val:
-            operator_count += 1
-    group_sizes.append(operator_count)
-
+    # Search mode: we try two lookup paths and return the first that hits.
+    #
+    # 1) destil-based lookup (stock TD path). When the user types a query,
+    #    TD's nodetable pipeline filters `destil` to only the rows whose
+    #    `type` column does NOT end with 'Disable' — i.e. the rows that
+    #    matched the query. In our custom family, fam_script_callbacks
+    #    adds the 'Disable' suffix to non-matching rows, so destil ends
+    #    up containing only the matches (or empty if nothing matches).
+    #    For a click on a *matching* row this path resolves the name
+    #    cleanly.
+    #
+    # 2) Grid math fallback on op_fam directly. The dialog actually keeps
+    #    rendering the *full* grid (matching + greyed rows), so the user
+    #    can also click greyed rows. destil doesn't know about those, so
+    #    we fall back to the same panel_value -> op_fam row mapping used
+    #    in non-search mode. This lets users spawn any operator they see,
+    #    even when its row is greyed.
+    #
+    # The -934 sentinel still means "first match"; it only makes sense
+    # for the destil path.
     if search_string or panel_value == -934:
         destil = op_create.op('nodetable/destil')
-        row_clicked = 1 if panel_value == -934 else panel_value
-        if destil is not None and destil.numRows > row_clicked:
-            selected_name = destil[row_clicked, 0].val
-            matches = [i for i in range(op_fam.numRows) if op_fam[i, 'name'].val == selected_name]
-            return matches[0] if matches else -1
+        if destil is not None and destil.numRows >= 2:
+            if panel_value == -934:
+                destil_row = destil.numRows - 1
+            else:
+                destil_row = destil.numRows - panel_value
+            if destil_row > 0 and destil_row < destil.numRows:
+                selected_name = str(destil[destil_row, 0].val)
+                if selected_name:
+                    for i in range(1, op_fam.numRows):
+                        if str(op_fam[i, 'name'].val) == selected_name:
+                            return i
+
+        # destil-path missed (greyed row, empty destil, or name mismatch).
+        # Fall through to grid math below. If panel_value is the -934
+        # sentinel we have no row to point at, so bail out.
+        if panel_value == -934:
+            return -1
+
+    # Grid mode (also reached as fallback in search mode): the nodetable widget lays out OP_fam linearly (column-major),
+    # counting every row — including defLabel headers and empty padding rows —
+    # as one slot. So panel_value N maps to OP_fam row (N + 1); the +1 skips
+    # the column-header row at index 0. This holds for any layout: groups
+    # stacked in one column (no padding), one group per column (padded), or
+    # any mix — padding rows occupy slots, keeping the mapping linear.
+    target_row = panel_value + 1
+    if target_row <= 0 or target_row >= op_fam.numRows:
         return -1
 
-    columns_per_group = [2 if size == rows_per_col else (size + rows_per_col - 1) // rows_per_col for size in group_sizes]
-    col_number = panel_value // rows_per_col
-    cols_counted = 0
-    actual_group = 0
-    for group_index, cols in enumerate(columns_per_group):
-        if col_number < cols_counted + cols:
-            actual_group = group_index
-            break
-        cols_counted += cols
+    try:
+        row_type = str(op_fam[target_row, 'type'].val)
+        row_name = str(op_fam[target_row, 'name'].val)
+    except Exception:
+        return -1
 
-    cols_into_group = col_number - cols_counted
-    pos_in_group = (panel_value % rows_per_col) - 1 if cols_into_group == 0 else (rows_per_col - 1) + (panel_value % rows_per_col)
-    if pos_in_group < group_sizes[actual_group]:
-        return group_starts[actual_group] + 1 + pos_in_group
-    return -1
+    # Reject group headers (defLabel) and padding rows (empty name).
+    if row_type.endswith('defLabel') or not row_name.strip():
+        return -1
+    return target_row
 
 def onValueChange(panelValue, prev):
     if panelValue == -1:
