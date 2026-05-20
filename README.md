@@ -12,7 +12,8 @@
   Developed and tested on **TouchDesigner build 2025.32460** — compatible with this version.
 
   [![License: MIT](https://img.shields.io/github/license/Gianluca-Colia/CustomFamilies?style=flat-square)](LICENSE)
-  [![Issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/issues)
+  [![Open issues](https://img.shields.io/github/issues/Gianluca-Colia/CustomFamilies?style=flat-square&label=open%20issues&color=orange)](https://github.com/Gianluca-Colia/CustomFamilies/issues?q=is%3Aissue+is%3Aopen)
+  [![Closed issues](https://img.shields.io/github/issues-closed/Gianluca-Colia/CustomFamilies?style=flat-square&label=closed%20issues&color=success)](https://github.com/Gianluca-Colia/CustomFamilies/issues?q=is%3Aissue+is%3Aclosed)
   [![Stars](https://img.shields.io/github/stars/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/stargazers)
   [![Downloads](https://img.shields.io/github/downloads/Gianluca-Colia/CustomFamilies/total?style=flat-square&label=downloads&cacheSeconds=300&v=2)](https://github.com/Gianluca-Colia/CustomFamilies/releases)
   [![Last commit](https://img.shields.io/github/last-commit/Gianluca-Colia/CustomFamilies?style=flat-square)](https://github.com/Gianluca-Colia/CustomFamilies/commits/main)
