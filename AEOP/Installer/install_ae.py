@@ -1,7 +1,7 @@
 ﻿# AEOP - After Effects side installer
 # =====================================================================
-# This is the callbacks file for a Parameter Execute DAT living inside the
-# Base COMP named "Installer" (inside the AEOP component).
+# Callbacks file for the Parameter Execute DAT inside the Base COMP
+# "Installer" (inside the AEOP component).
 #
 # SETUP (in TouchDesigner):
 #   1. Base COMP "Installer" gets a custom PULSE parameter named "Install"
@@ -9,7 +9,7 @@
 #   2. A Parameter Execute DAT inside it, with:
 #        - "Parameters" / op = the Base itself (parent())  -> "../" or "."
 #        - watch the custom page (Pulse = On)
-#        - DAT text synced to this file.
+#        - DAT text synced to this file (Sync to File / Load on Start).
 #   3. Press the "Install" pulse -> onPulse() runs the AE install.
 #
 # WHAT IT DOES (minimal, no antivirus assistant):
@@ -38,11 +38,39 @@ PANEL_NAME = 'com.aeop.nullosc'
 INSTALL_PAR = 'Install'
 
 
+# =====================================================================
+# Parameter Execute DAT callbacks (full standard set - keep all of them).
+#   me   - this DAT
+#   par  - the Par object that changed
+#   val  - the current value of the par
+#   prev - the previous value of the par
+# Only onPulse is wired; the rest are required template stubs.
+# =====================================================================
+
+def onValueChange(par, prev):
+	return
+
 def onPulse(par):
 	if par.name == INSTALL_PAR:
 		_install_after_effects()
 	return
 
+def onExpressionChange(par, val, prev):
+	return
+
+def onExportChange(par, val, prev):
+	return
+
+def onEnableChange(par, val, prev):
+	return
+
+def onModeChange(par, val, prev):
+	return
+
+
+# =====================================================================
+# Install implementation
+# =====================================================================
 
 def _install_after_effects():
 	"""Install the After Effects side of AEOP. Never raises."""
@@ -177,21 +205,3 @@ def _elevate_copy_to_plugins(aex_src, plug_dirs):
 def _message(text):
 	"""Deferred message box so the callback stack unwinds first."""
 	run("ui.messageBox('Custom families - After Effects', {!r})".format(text), delayFrames=1)
-
-
-# ---- Parameter Execute DAT stubs (required signatures) ----
-
-def onValueChange(par, prev):
-	return
-
-def onExpressionChange(par, val, prev):
-	return
-
-def onExportChange(par, val, prev):
-	return
-
-def onEnableChange(par, val, prev):
-	return
-
-def onModeChange(par, val, prev):
-	return
