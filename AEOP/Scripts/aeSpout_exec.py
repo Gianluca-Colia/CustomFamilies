@@ -1,31 +1,27 @@
-﻿# AEOP - Spout effect control (TD node side)
+﻿# AEOP - Spout effect control (TD node side)  --  Parameter Execute DAT
 # =====================================================================
-# Parameter Execute DAT for the AEOP node. Drives the AELayerSpout effect
-# in After Effects WITHOUT the user ever applying it by hand:
-#   - on Comp/Layer selection change -> apply the effect to the new layer
-#     (and remove it from the previously targeted layer)
-#   - on the optional "Detach" pulse  -> remove it from the current layer
+# Watches the wrapper's selection menus (Layertype / Project / Comp / Layer).
+# On any change it:
+#   1) lets aeMenu_exec re-sync the cascading menus (so Comp/Layer refilter),
+#   2) drives the AELayerSpout effect in After Effects to follow the selected
+#      layer - apply on the new layer, remove from the previous one - so the
+#      user never applies the effect by hand.
 #
-# The menus themselves are populated independently (see aeMenu_exec.py), so
-# every layer is listed BEFORE any effect is applied.
+# No effect for layer types that don't render pixels (null/camera/light).
 #
-# Transport: an OSC Out DAT inside the node, pointing at the CEP panel's
-# command channel (UDP 127.0.0.1:7001). The panel maps these to
-# AEOP_applySpout / AEOP_removeSpout in aeQuery.jsx.
+# Identifiers: the wrapper's Comp par value is the COMP NAME and the Layer par
+# value is the LAYER NAME (that's what the C++ dynamic menu stores), so the
+# effect is applied/removed BY NAME.
 #
-# Wiring:
-#   - OSC Out DAT named OSC_DAT below: Protocol "Messaging" (UDP),
-#     Network Address 127.0.0.1, Port 7001.
-#   - This Parameter Execute watches the node (op = "..") custom page,
-#     with Value Change + Pulse on.
-#   - The node has custom pars: Comp (string/menu) and Layer (menu whose
-#     value is the AE layer INDEX, 1-based), plus an optional Detach pulse.
+# Transport: an OSC Out DAT (OSC_DAT) -> CEP panel command channel
+# (UDP 127.0.0.1:7001) -> AEOP_applySpout / AEOP_removeSpout in aeQuery.jsx.
 # =====================================================================
 
-OSC_DAT = 'oscout1'          # name of the OSC Out DAT inside the node
-MENU_DAT = 'aeMenu_exec'     # CHOP Execute DAT that owns the menu rebuild
-TARGET_KEY = 'aeop_spout_target'   # stored [compName, layerIndex] currently applied
-TYPE_PAR = 'Type'
+OSC_DAT = 'oscout1'          # OSC Out DAT inside the node
+MENU_DAT = 'aeMenu_exec'     # CHOP Execute DAT that owns the menu sync
+TARGET_KEY = 'aeop_spout_target'   # stored [compName, layerName] currently applied
+LAYERTYPE_PAR = 'Layertype'
+PROJECT_PAR = 'Project'
 COMP_PAR = 'Comp'
 LAYER_PAR = 'Layer'
 DETACH_PAR = 'Detach'
@@ -34,54 +30,55 @@ DETACH_PAR = 'Detach'
 # (a null has nothing to send; cameras/lights can't take an effect at all).
 NO_EFFECT_TYPES = ('null', 'camera', 'light')
 
+WATCHED = (LAYERTYPE_PAR, PROJECT_PAR, COMP_PAR, LAYER_PAR)
 
-def _rebuild_menus():
-	"""Ask aeMenu_exec to refilter the Comp/Layer menus (Type/Comp changed)."""
-	m = parent().op(MENU_DAT)
+
+def _menu():
+	return parent().op(MENU_DAT)
+
+
+def _sync_menus():
+	m = _menu()
 	if m is not None:
 		try:
-			m.module.Rebuild()
+			m.module.Sync()
 		except Exception as exc:
-			debug('[AEOP node] menu rebuild failed: {}'.format(exc))
+			debug('[AEOP node] menu sync failed: {}'.format(exc))
 
 
 def _osc():
 	return parent().op(OSC_DAT)
 
 
-def _send(address, comp, idx):
+def _send(address, comp, layer):
 	o = _osc()
-	if o is not None and comp and idx:
+	if o is not None and comp and layer:
 		try:
-			o.sendOSC(address, [comp, int(idx)])
+			o.sendOSC(address, [comp, layer])   # both strings (comp name, layer name)
 		except Exception as exc:
 			debug('[AEOP node] OSC send failed: {}'.format(exc))
 
 
 def _current_target():
-	"""(compName, layerIndex) from the node's menus. layerIndex = AE 1-based."""
+	"""(compName, layerName) from the wrapper menus."""
 	n = parent()
 	try:
-		comp = n.par[COMP_PAR].eval()
-		idx = int(n.par[LAYER_PAR].eval())
-		return comp, idx
+		return n.par.Comp.eval(), n.par.Layer.eval()
 	except Exception:
 		return None, None
 
 
 def _apply():
-	"""Move the effect to the current selection: remove from the previous
-	target (if different), apply to the new one, remember the new one.
-	Layer types that don't render (null/camera/light) get NO effect."""
+	"""Move the effect to the current selection (remove from previous, apply to
+	new). Layer types that don't render (null/camera/light) get NO effect."""
 	n = parent()
 	try:
-		ltype = n.par[TYPE_PAR].eval()
+		ltype = n.par.Layertype.eval()
 	except Exception:
 		ltype = ''
-	comp, idx = _current_target()
+	comp, layer = _current_target()
 	old = n.fetch(TARGET_KEY, None)
 
-	# No-pixel types: never apply; clean up any leftover effect and bail.
 	if ltype in NO_EFFECT_TYPES:
 		if old:
 			_send('/ae/spout/remove', old[0], old[1])
@@ -91,16 +88,15 @@ def _apply():
 				pass
 		return
 
-	if not comp or not idx:
+	if not comp or not layer:
 		return
-	if old and list(old) != [comp, idx]:
+	if old and list(old) != [comp, layer]:
 		_send('/ae/spout/remove', old[0], old[1])
-	_send('/ae/spout/apply', comp, idx)
-	n.store(TARGET_KEY, [comp, idx])
+	_send('/ae/spout/apply', comp, layer)
+	n.store(TARGET_KEY, [comp, layer])
 
 
 def _detach():
-	"""Remove the effect from whatever layer we last applied it to."""
 	n = parent()
 	old = n.fetch(TARGET_KEY, None)
 	if old:
@@ -114,12 +110,17 @@ def _detach():
 # ----- Parameter Execute DAT callbacks (full standard set) -----
 
 def onValueChange(par, prev):
-	# Type/Comp changed -> refilter the dependent menus first.
-	if par.name in (TYPE_PAR, COMP_PAR):
-		_rebuild_menus()
-	# Comp/Layer changed -> move the Spout effect to the new target.
-	if par.name in (COMP_PAR, LAYER_PAR):
-		_apply()
+	# Ignore changes the menu sync makes itself (avoids recursion / stray applies).
+	m = _menu()
+	if m is not None:
+		try:
+			if m.module.is_syncing():
+				return
+		except Exception:
+			pass
+	if par.name in WATCHED:
+		_sync_menus()   # refilter the cascade for the new selection
+		_apply()        # follow it with the effect
 	return
 
 def onPulse(par):

@@ -160,9 +160,9 @@
         var m = parseOsc(buf);
         if (!m) return;
         if (m.address === "/ae/spout/apply" && m.args.length >= 2)
-            evalScript("AEOP_applySpout('" + esc(m.args[0]) + "', " + (m.args[1] | 0) + ");");
+            evalScript("AEOP_applySpout('" + esc(m.args[0]) + "', '" + esc(m.args[1]) + "');");
         else if (m.address === "/ae/spout/remove" && m.args.length >= 2)
-            evalScript("AEOP_removeSpout('" + esc(m.args[0]) + "', " + (m.args[1] | 0) + ");");
+            evalScript("AEOP_removeSpout('" + esc(m.args[0]) + "', '" + esc(m.args[1]) + "');");
         else if (m.address === "/ae/spout/removeall")
             evalScript("AEOP_removeAllSpout();");
     }

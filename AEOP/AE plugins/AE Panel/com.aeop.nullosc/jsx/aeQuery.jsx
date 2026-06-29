@@ -365,13 +365,20 @@ function AEOP__removeSpoutFromLayer(layer) {
     return removed;
 }
 
-// Apply AELayerSpout to comp/layerIndex (no-op if already present).
-function AEOP_applySpout(compName, layerIndex) {
+// Find a layer by NAME in a comp (the wrapper menus key layers by name).
+function AEOP__layerByName(comp, name) {
+    for (var i = 1; i <= comp.numLayers; i++)
+        if (comp.layer(i).name === name) return comp.layer(i);
+    return null;
+}
+
+// Apply AELayerSpout to comp/layerName (no-op if already present).
+function AEOP_applySpout(compName, layerName) {
     try {
         var comp = AEOP__compByName(compName);
         if (!comp) return "no comp";
-        if (layerIndex < 1 || layerIndex > comp.numLayers) return "no layer";
-        var layer = comp.layer(layerIndex);
+        var layer = AEOP__layerByName(comp, layerName);
+        if (!layer) return "no layer";
         if (AEOP__layerHasSpout(layer)) return "ok";
         var fx = layer.property("ADBE Effect Parade");
         if (!fx) return "no fx group";
@@ -383,14 +390,15 @@ function AEOP_applySpout(compName, layerIndex) {
     } catch (e) { return "err " + e.toString(); }
 }
 
-// Remove AELayerSpout from comp/layerIndex.
-function AEOP_removeSpout(compName, layerIndex) {
+// Remove AELayerSpout from comp/layerName.
+function AEOP_removeSpout(compName, layerName) {
     try {
         var comp = AEOP__compByName(compName);
         if (!comp) return "no comp";
-        if (layerIndex < 1 || layerIndex > comp.numLayers) return "no layer";
+        var layer = AEOP__layerByName(comp, layerName);
+        if (!layer) return "no layer";
         app.beginUndoGroup("AEOP remove Spout");
-        var r = AEOP__removeSpoutFromLayer(comp.layer(layerIndex));
+        var r = AEOP__removeSpoutFromLayer(layer);
         app.endUndoGroup();
         return r ? "ok" : "absent";
     } catch (e) { return "err " + e.toString(); }
