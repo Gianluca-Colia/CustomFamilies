@@ -1307,26 +1307,19 @@ class Install:
 
 			# 3) Effect .aex -> each AE version's Plug-ins (Program Files: 1 UAC).
 			if os.path.isfile(aex_src):
-				try:
-					self._elevate_copy_to_plugins(aex_src, plug_dirs)
-				except Exception as exc:
-					debug('[Custom_families AE] elevated copy failed: {}'.format(exc))
-				try:
-					time.sleep(2)   # give a real-time AV a moment to quarantine, if it will
-				except Exception:
-					pass
-				blocked = []
-				for d in plug_dirs:
-					if os.path.isfile(os.path.join(d, 'AELayerSpout.aex')):
-						debug('[Custom_families AE] effect -> ' + d)
-					else:
-						blocked.append(d)
-						debug('[Custom_families AE] BLOCKED (antivirus?): ' + d)
+				blocked = self._copy_and_verify(aex_src, plug_dirs)
 				if blocked:
-					nlc = chr(10)
-					msg = ("Il plugin di After Effects (AELayerSpout.aex) e' stato bloccato dall'antivirus." + nlc +
-					       "Aggiungi un'eccezione per queste cartelle, poi reinstalla:" + nlc + nlc + nlc.join(blocked))
-					run("ui.messageBox('Custom families - After Effects', {!r})".format(msg), delayFrames=1)
+					# Antivirus blocked it -> hand off to the interactive recovery
+					# dialog (deferred so the install-step callstack unwinds first).
+					# It detects the AV, offers a one-click Defender unblock, opens
+					# the folders, and retries the copy until the effect installs.
+					run(
+						"owner = op(args[0]); "
+						"owner.ext.Install._handle_ae_blocked(args[1], args[2]) "
+						"if owner is not None else None",
+						self.ownerComp.path, blocked, aex_src,
+						delayFrames=1
+					)
 
 			debug('[Custom_families AE] done (restart After Effects to load).')
 		except Exception as exc:
@@ -1352,15 +1345,18 @@ class Install:
 		return dirs
 
 	def _elevate_copy_to_plugins(self, aex_src, plug_dirs):
-		"""Copy aex_src into each plug dir via ONE elevated cmd.exe (UAC), waiting
-		for it to finish (ShellExecuteEx 'runas', hidden window)."""
-		import ctypes
-		from ctypes import wintypes
+		"""Copy aex_src into each plug dir via ONE elevated cmd.exe (UAC)."""
 		parts = []
 		for d in plug_dirs:
 			dst = os.path.join(d, 'AELayerSpout.aex')
 			parts.append('copy /Y "{}" "{}"'.format(aex_src, dst))
-		params = '/c ' + ' & '.join(parts)
+		self._elevate_and_wait('cmd.exe', '/c ' + ' & '.join(parts))
+
+	def _elevate_and_wait(self, file, params, timeout_ms=60000):
+		"""Run `file params` elevated (ShellExecuteEx 'runas', hidden window) and
+		wait for it to finish. One UAC prompt. Raises on launch failure."""
+		import ctypes
+		from ctypes import wintypes
 
 		class SHELLEXECUTEINFO(ctypes.Structure):
 			_fields_ = [('cbSize', wintypes.DWORD), ('fMask', ctypes.c_ulong),
@@ -1375,14 +1371,162 @@ class Install:
 		sei.cbSize = ctypes.sizeof(sei)
 		sei.fMask = 0x00000040   # SEE_MASK_NOCLOSEPROCESS
 		sei.lpVerb = 'runas'
-		sei.lpFile = 'cmd.exe'
+		sei.lpFile = file
 		sei.lpParameters = params
 		sei.nShow = 0            # SW_HIDE
 		if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei)):
 			raise OSError('ShellExecuteExW runas failed')
 		if sei.hProcess:
-			ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, 30000)
+			ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, timeout_ms)
 			ctypes.windll.kernel32.CloseHandle(sei.hProcess)
+
+	# ----- After Effects effect: antivirus recovery assistant -----
+
+	def _still_blocked(self, dirs):
+		"""Subset of dirs that still do NOT contain the installed .aex."""
+		return [d for d in dirs if not os.path.isfile(os.path.join(d, 'AELayerSpout.aex'))]
+
+	def _copy_and_verify(self, aex_src, dirs):
+		"""Elevated-copy the .aex into dirs, give a real-time AV a moment, then
+		return the subset still missing it (blocked)."""
+		import time
+		try:
+			self._elevate_copy_to_plugins(aex_src, dirs)
+		except Exception as exc:
+			debug('[Custom_families AE] elevated copy failed: {}'.format(exc))
+		try:
+			time.sleep(2)
+		except Exception:
+			pass
+		blocked = self._still_blocked(dirs)
+		for d in dirs:
+			if d in blocked:
+				debug('[Custom_families AE] BLOCKED (antivirus?): ' + d)
+			else:
+				debug('[Custom_families AE] effect -> ' + d)
+		return blocked
+
+	def _detect_antivirus(self):
+		"""Display names of registered AV products (root/SecurityCenter2). Empty on
+		any failure. Read-only WMI query; no window."""
+		names = []
+		try:
+			import subprocess
+			cmd = ['powershell', '-NoProfile', '-NonInteractive', '-Command',
+			       "Get-CimInstance -Namespace root/SecurityCenter2 "
+			       "-ClassName AntiVirusProduct | "
+			       "Select-Object -ExpandProperty displayName"]
+			out = subprocess.run(cmd, capture_output=True, text=True, timeout=15,
+			                     creationflags=0x08000000)   # CREATE_NO_WINDOW
+			if out.returncode == 0:
+				for line in out.stdout.splitlines():
+					line = line.strip()
+					if line:
+						names.append(line)
+		except Exception as exc:
+			debug('[Custom_families AE] AV detect failed: {}'.format(exc))
+		return names
+
+	def _av_instructions(self, av):
+		"""AV-specific manual whitelist steps (Avast/AVG get exact steps)."""
+		nlc = chr(10)
+		low = ' '.join(av).lower() if av else ''
+		if 'avast' in low or 'avg' in low:
+			return ("Per sbloccare manualmente (Avast/AVG):" + nlc +
+			        "1) Apri l'antivirus -> Protezione -> Quarantena (Virus Chest)" + nlc +
+			        "2) Seleziona AELayerSpout.aex -> Ripristina e aggiungi eccezione" + nlc +
+			        "3) Torna qui e premi 'Riprova'.")
+		return ("Apri il tuo antivirus, aggiungi un'eccezione per le cartelle qui sopra "
+		        "(e ripristina AELayerSpout.aex dalla quarantena se presente), poi premi 'Riprova'.")
+
+	def _open_folders(self, dirs, aex_src):
+		"""Open the source folder and each blocked Plug-ins folder in Explorer."""
+		targets = [os.path.dirname(aex_src)] + list(dirs)
+		for t in targets:
+			try:
+				if os.path.isdir(t):
+					os.startfile(t)   # noqa: shell open, read-only
+			except Exception as exc:
+				debug('[Custom_families AE] open folder failed ({}): {}'.format(t, exc))
+
+	def _defender_unblock_and_copy(self, dirs, aex_src):
+		"""ONE elevated PowerShell that adds Windows Defender exclusions (the .aex
+		extension + the source and destination folders) and copies the effect in.
+		No-op on machines where Defender is disabled (3rd-party AV) - harmless.
+		Returns the subset still blocked afterwards."""
+		import time
+		def q(p):
+			return "'" + p.replace("'", "''") + "'"
+		excl = [os.path.dirname(aex_src)] + list(dirs)
+		excl_ps = ','.join(q(p) for p in excl)
+		copies = ';'.join(
+			"Copy-Item -Force {} {}".format(q(aex_src), q(os.path.join(d, 'AELayerSpout.aex')))
+			for d in dirs)
+		ps = ("$ErrorActionPreference='SilentlyContinue';"
+		      "Add-MpPreference -ExclusionExtension 'aex';"
+		      "Add-MpPreference -ExclusionPath " + excl_ps + ";" + copies)
+		params = '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' + ps + '"'
+		try:
+			self._elevate_and_wait('powershell.exe', params)
+		except Exception as exc:
+			debug('[Custom_families AE] defender unblock failed: {}'.format(exc))
+		try:
+			time.sleep(2)
+		except Exception:
+			pass
+		return self._still_blocked(dirs)
+
+	def _handle_ae_blocked(self, blocked_dirs, aex_src):
+		"""Interactive recovery when antivirus blocked the .aex copy to Program
+		Files. Offers a one-click Windows Defender unblock (the only AV we can
+		script), opens the folders, and retries after a manual whitelist. Re-shows
+		itself until the effect installs everywhere or the user closes it. The
+		blocked set shrinks as copies succeed. Never raises."""
+		try:
+			title = 'Custom families - After Effects'
+			nlc = chr(10)
+			if not os.path.isfile(aex_src):
+				self._show_message(
+					"Il file sorgente del plugin AE non e' piu' presente (probabilmente "
+					"messo in quarantena dall'antivirus):" + nlc + aex_src + nlc + nlc +
+					"Ripristinalo dalla quarantena e reinstalla Custom families.")
+				return
+			av = self._detect_antivirus()
+			av_str = ', '.join(av) if av else 'sconosciuto'
+			while blocked_dirs:
+				msg = ("Il plugin di After Effects (AELayerSpout.aex) e' stato bloccato "
+				       "dall'antivirus (" + av_str + ") e non e' stato installato in:" + nlc + nlc +
+				       nlc.join(blocked_dirs) + nlc + nlc +
+				       "Posso aggiungere automaticamente un'eccezione a Windows Defender e "
+				       "reinstallare (richiede autorizzazione admin). Se usi un altro "
+				       "antivirus:" + nlc + self._av_instructions(av))
+				buttons = ['Sblocca con Windows Defender',
+				           'Apri le cartelle',
+				           "Ho sistemato l'antivirus: Riprova",
+				           'Chiudi']
+				try:
+					choice = ui.messageBox(title, msg, buttons=buttons)
+				except Exception as exc:
+					debug('[Custom_families AE] messageBox failed: {}'.format(exc))
+					return
+				if choice == 0:
+					blocked_dirs = self._defender_unblock_and_copy(blocked_dirs, aex_src)
+				elif choice == 1:
+					self._open_folders(blocked_dirs, aex_src)
+					continue
+				elif choice == 2:
+					blocked_dirs = self._copy_and_verify(aex_src, blocked_dirs)
+				else:
+					return
+				if not blocked_dirs:
+					self._show_message("Plugin di After Effects installato correttamente. "
+					                   "Riavvia After Effects per caricarlo.")
+					return
+		except Exception as exc:
+			try:
+				debug('[Custom_families AE] recovery error (ignored): {}'.format(exc))
+			except Exception:
+				pass
 
 	def _show_message(self, text):
 		run("ui.messageBox('Custom families', {!r})".format(text), delayFrames=1)
