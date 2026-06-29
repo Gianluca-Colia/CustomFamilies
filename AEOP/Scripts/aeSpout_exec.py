@@ -30,6 +30,10 @@ COMP_PAR = 'Comp'
 LAYER_PAR = 'Layer'
 DETACH_PAR = 'Detach'
 
+# Layer types that DON'T render pixels -> they never need the Spout effect
+# (a null has nothing to send; cameras/lights can't take an effect at all).
+NO_EFFECT_TYPES = ('null', 'camera', 'light')
+
 
 def _rebuild_menus():
 	"""Ask aeMenu_exec to refilter the Comp/Layer menus (Type/Comp changed)."""
@@ -67,12 +71,28 @@ def _current_target():
 
 def _apply():
 	"""Move the effect to the current selection: remove from the previous
-	target (if different), apply to the new one, remember the new one."""
+	target (if different), apply to the new one, remember the new one.
+	Layer types that don't render (null/camera/light) get NO effect."""
 	n = parent()
+	try:
+		ltype = n.par[TYPE_PAR].eval()
+	except Exception:
+		ltype = ''
 	comp, idx = _current_target()
+	old = n.fetch(TARGET_KEY, None)
+
+	# No-pixel types: never apply; clean up any leftover effect and bail.
+	if ltype in NO_EFFECT_TYPES:
+		if old:
+			_send('/ae/spout/remove', old[0], old[1])
+			try:
+				n.unstore(TARGET_KEY)
+			except Exception:
+				pass
+		return
+
 	if not comp or not idx:
 		return
-	old = n.fetch(TARGET_KEY, None)
 	if old and list(old) != [comp, idx]:
 		_send('/ae/spout/remove', old[0], old[1])
 	_send('/ae/spout/apply', comp, idx)
