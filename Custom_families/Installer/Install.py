@@ -1172,40 +1172,39 @@ class Install:
 		return None
 
 	def _install_after_effects(self):
-		"""[AE INSTALL - optional] Install the After Effects side of AEOP in PURE
-		PYTHON (no PowerShell, no admin/UAC, no separate script): the
-		AELayerSpout.aex effect, the CEP panel, and the PlayerDebugMode registry
-		flag. Every target is a PER-USER folder (%APPDATA%), so antivirus does not
-		quarantine it the way it does for Program Files, and no elevation is needed.
+		"""[AE INSTALL - optional] Install the After Effects side of AEOP.
 
-		KILL SWITCH: this whole feature hangs off ONE line in _install_steps()
-		(see the 'AE INSTALL' banner there) - comment that line to disable it.
-		FULLY DEFENSIVE: every step is wrapped so a failure is logged and swallowed;
-		it can NEVER raise and break the Custom families install. The C++ operators
-		(.dll) are read in place from AEOP/Dll and need no install.
+		Registry (PlayerDebugMode) and the CEP panel go to PER-USER folders in pure
+		Python (no elevation). The effect (AELayerSpout.aex) MUST live in each AE
+		version's Program Files Plug-ins folder (the only place AE scans), so it is
+		copied by ONE elevated child (a single UAC prompt) via ShellExecute 'runas',
+		and we wait for it.
+
+		AV NOTE: the effect is unsigned, so aggressive antivirus (Avast/AVG) may
+		quarantine it from Program Files. After the copy we verify the files
+		survived; if not, we show a message naming the folders to whitelist.
+
+		KILL SWITCH: this whole feature hangs off ONE line in _install_steps() (see
+		the 'AE INSTALL' banner there) - comment that line to disable it. FULLY
+		DEFENSIVE: every step is wrapped; it can NEVER raise and break the Custom
+		families install. The C++ operators (.dll) are read in place from AEOP/Dll.
 		"""
 		try:
-			import winreg
+			import winreg, time
 			plugins_src = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins')
 			aex_src = os.path.join(plugins_src, 'AELayerSpout.aex')
 			panel_src = os.path.join(plugins_src, 'AE Panel', 'com.aeop.nullosc')
-			appdata = os.environ.get('APPDATA')
-			if not appdata:
-				debug('[Custom_families AE] APPDATA not set; skipping.')
+
+			# GUARD: do nothing unless a real After Effects install is present.
+			plug_dirs = self._ae_plugin_dirs()
+			if not plug_dirs:
+				debug('[Custom_families AE] After Effects not found; skipping.')
 				return
 
-			# 1) Effect .aex -> per-user shared MediaCore (read by all AE versions).
-			if os.path.isfile(aex_src):
-				try:
-					mediacore = os.path.join(appdata, 'Adobe', 'Common', 'Plug-ins', '7.0', 'MediaCore')
-					os.makedirs(mediacore, exist_ok=True)
-					shutil.copy2(aex_src, os.path.join(mediacore, 'AELayerSpout.aex'))
-					debug('[Custom_families AE] effect -> ' + mediacore)
-				except Exception as exc:
-					debug('[Custom_families AE] effect copy failed: {}'.format(exc))
+			appdata = os.environ.get('APPDATA')
 
-			# 2) CEP panel -> per-user extensions.
-			if os.path.isdir(panel_src):
+			# 1) CEP panel -> per-user extensions (no elevation).
+			if appdata and os.path.isdir(panel_src):
 				try:
 					ext_dir = os.path.join(appdata, 'Adobe', 'CEP', 'extensions')
 					dest = os.path.join(ext_dir, 'com.aeop.nullosc')
@@ -1217,7 +1216,7 @@ class Install:
 				except Exception as exc:
 					debug('[Custom_families AE] panel copy failed: {}'.format(exc))
 
-			# 3) PlayerDebugMode=1 (HKCU) so the unsigned CEP panel can load.
+			# 2) PlayerDebugMode=1 (HKCU) so the unsigned CEP panel can load.
 			try:
 				for v in (9, 10, 11, 12):
 					k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, 'Software\\Adobe\\CSXS.{}'.format(v))
@@ -1227,12 +1226,84 @@ class Install:
 			except Exception as exc:
 				debug('[Custom_families AE] registry failed: {}'.format(exc))
 
+			# 3) Effect .aex -> each AE version's Plug-ins (Program Files: 1 UAC).
+			if os.path.isfile(aex_src):
+				try:
+					self._elevate_copy_to_plugins(aex_src, plug_dirs)
+				except Exception as exc:
+					debug('[Custom_families AE] elevated copy failed: {}'.format(exc))
+				try:
+					time.sleep(2)   # give a real-time AV a moment to quarantine, if it will
+				except Exception:
+					pass
+				blocked = []
+				for d in plug_dirs:
+					if os.path.isfile(os.path.join(d, 'AELayerSpout.aex')):
+						debug('[Custom_families AE] effect -> ' + d)
+					else:
+						blocked.append(d)
+						debug('[Custom_families AE] BLOCKED (antivirus?): ' + d)
+				if blocked:
+					nlc = chr(10)
+					msg = ("Il plugin di After Effects (AELayerSpout.aex) e' stato bloccato dall'antivirus." + nlc +
+					       "Aggiungi un'eccezione per queste cartelle, poi reinstalla:" + nlc + nlc + nlc.join(blocked))
+					run("ui.messageBox('Custom families - After Effects', {!r})".format(msg), delayFrames=1)
+
 			debug('[Custom_families AE] done (restart After Effects to load).')
 		except Exception as exc:
 			try:
 				debug('[Custom_families AE] install error (ignored): {}'.format(exc))
 			except Exception:
 				pass
+
+	def _ae_plugin_dirs(self):
+		"""Support Files/Plug-ins folder of every real AE install in Program Files."""
+		dirs = []
+		try:
+			pf = os.environ.get('ProgramFiles', r'C:\Program Files')
+			adobe = os.path.join(pf, 'Adobe')
+			if os.path.isdir(adobe):
+				for name in os.listdir(adobe):
+					if name.lower().startswith('adobe after effects'):
+						plug = os.path.join(adobe, name, 'Support Files', 'Plug-ins')
+						if os.path.isdir(plug):
+							dirs.append(plug)
+		except Exception as exc:
+			debug('[Custom_families AE] plugin-dir scan failed: {}'.format(exc))
+		return dirs
+
+	def _elevate_copy_to_plugins(self, aex_src, plug_dirs):
+		"""Copy aex_src into each plug dir via ONE elevated cmd.exe (UAC), waiting
+		for it to finish (ShellExecuteEx 'runas', hidden window)."""
+		import ctypes
+		from ctypes import wintypes
+		parts = []
+		for d in plug_dirs:
+			dst = os.path.join(d, 'AELayerSpout.aex')
+			parts.append('copy /Y "{}" "{}"'.format(aex_src, dst))
+		params = '/c ' + ' & '.join(parts)
+
+		class SHELLEXECUTEINFO(ctypes.Structure):
+			_fields_ = [('cbSize', wintypes.DWORD), ('fMask', ctypes.c_ulong),
+			            ('hwnd', wintypes.HWND), ('lpVerb', wintypes.LPCWSTR),
+			            ('lpFile', wintypes.LPCWSTR), ('lpParameters', wintypes.LPCWSTR),
+			            ('lpDirectory', wintypes.LPCWSTR), ('nShow', ctypes.c_int),
+			            ('hInstApp', wintypes.HINSTANCE), ('lpIDList', ctypes.c_void_p),
+			            ('lpClass', wintypes.LPCWSTR), ('hkeyClass', wintypes.HKEY),
+			            ('dwHotKey', wintypes.DWORD), ('hIcon', wintypes.HANDLE),
+			            ('hProcess', wintypes.HANDLE)]
+		sei = SHELLEXECUTEINFO()
+		sei.cbSize = ctypes.sizeof(sei)
+		sei.fMask = 0x00000040   # SEE_MASK_NOCLOSEPROCESS
+		sei.lpVerb = 'runas'
+		sei.lpFile = 'cmd.exe'
+		sei.lpParameters = params
+		sei.nShow = 0            # SW_HIDE
+		if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei)):
+			raise OSError('ShellExecuteExW runas failed')
+		if sei.hProcess:
+			ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, 30000)
+			ctypes.windll.kernel32.CloseHandle(sei.hProcess)
 
 	def _show_message(self, text):
 		run("ui.messageBox('Custom families', {!r})".format(text), delayFrames=1)
