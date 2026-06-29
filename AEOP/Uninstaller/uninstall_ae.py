@@ -23,7 +23,7 @@ import os
 import shutil
 
 PANEL_NAME = 'com.aeop.nullosc'
-AEX_NAMES = ('AELayerSpout.aex', 'AENullOSC.aex')   # all AE plugins to remove
+AEX_NAMES = ('AELayerSpout.aex',)   # AE plugins to remove (effect for the TOP)
 UNINSTALL_PAR = 'Uninstall'
 WINDOW_TITLE = 'AEOP - Disinstallazione After Effects'
 

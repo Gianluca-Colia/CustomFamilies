@@ -24,7 +24,7 @@ import shutil
 
 SCRIPTS_DISK_ROOT = os.path.join(app.preferencesFolder, 'Custom families')
 PLUGINS_SRC = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins')
-AEX_NAMES = ('AELayerSpout.aex', 'AENullOSC.aex')   # all AE plugins to install
+AEX_NAMES = ('AELayerSpout.aex',)   # AE plugins to install (effect for the TOP)
 PANEL_NAME = 'com.aeop.nullosc'
 INSTALL_PAR = 'Install'
 WINDOW_TITLE = 'AEOP - Installazione After Effects'
@@ -84,7 +84,7 @@ def _start():
 		('Controllo di After Effects', _step_detect),
 		('Installazione del pannello', _step_panel),
 		('Configurazione di After Effects', _step_registry),
-		("Copia degli effetti (conferma di Windows)", _step_effect),
+		("Copia dell'effetto (conferma di Windows)", _step_effect),
 	]
 	try:
 		_WIN = _ProgressWindow(WINDOW_TITLE, len(_STEPS))

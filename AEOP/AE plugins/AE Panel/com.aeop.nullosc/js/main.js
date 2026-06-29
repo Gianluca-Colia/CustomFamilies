@@ -282,10 +282,12 @@
                 });
             });
             frameTimer = setInterval(tick, 66);   // ~15 Hz (re-bake polling)
-            // Realtime static-layer streaming is handled by the AEGP plugin's idle
-            // hook (it fires during drags; CEP evalScript cannot - AE's script engine
-            // is busy mid-drag). Left here disabled in case a CEP-only fallback is
-            // ever needed: liveTimer = setInterval(sendLive, LIVE_INTERVAL_MS);
+            // Realtime static-layer streaming runs from the CEP extension itself
+            // (no AEGP plugin). evalScript is frozen mid-drag, so updates land on
+            // release / when parked / in scrub - which is all we need here. This
+            // path also tags layer types correctly (aeQuery.jsx classifies solids
+            // as "solid"), so the per-type component menus see every layer.
+            liveTimer = setInterval(sendLive, LIVE_INTERVAL_MS);
         });
 
         var btn = $("toggle");
