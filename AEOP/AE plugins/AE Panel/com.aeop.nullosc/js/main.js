@@ -126,6 +126,47 @@
         return Buffer.concat(parts);
     }
 
+    // --- OSC decoding (incoming commands from the TD node) -----------------
+    function oscReadString(buf, off) {
+        var end = off;
+        while (end < buf.length && buf[end] !== 0) end++;
+        return { v: buf.toString("binary", off, end), next: off + oscPadLen(end - off) };
+    }
+
+    function parseOsc(buf) {
+        try {
+            var a = oscReadString(buf, 0);
+            var t = oscReadString(buf, a.next);
+            var tags = t.v, off = t.next, args = [];
+            for (var i = 1; i < tags.length; i++) {
+                var tag = tags.charAt(i);
+                if (tag === "s") { var s = oscReadString(buf, off); args.push(s.v); off = s.next; }
+                else if (tag === "i") { args.push(buf.readInt32BE(off)); off += 4; }
+                else if (tag === "f") { args.push(buf.readFloatBE(off)); off += 4; }
+                else { off += 4; }
+            }
+            return { address: a.v, args: args };
+        } catch (e) { return null; }
+    }
+
+    // ExtendScript single-quote escaping for values we splice into evalScript.
+    function esc(s) { return String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+
+    // The TD node sends these to drive the Spout effect (apply/move/remove):
+    //   /ae/spout/apply   <comp:s> <layerIndex:i>
+    //   /ae/spout/remove  <comp:s> <layerIndex:i>
+    //   /ae/spout/removeall
+    function handleCommand(buf) {
+        var m = parseOsc(buf);
+        if (!m) return;
+        if (m.address === "/ae/spout/apply" && m.args.length >= 2)
+            evalScript("AEOP_applySpout('" + esc(m.args[0]) + "', " + (m.args[1] | 0) + ");");
+        else if (m.address === "/ae/spout/remove" && m.args.length >= 2)
+            evalScript("AEOP_removeSpout('" + esc(m.args[0]) + "', " + (m.args[1] | 0) + ");");
+        else if (m.address === "/ae/spout/removeall")
+            evalScript("AEOP_removeAllSpout();");
+    }
+
     function buildBakeMessage(project, comp, name, type, index, frame, numFrames, v) {
         var args = [
             { t: "s", v: project }, { t: "s", v: comp }, { t: "s", v: name }, { t: "s", v: type },
@@ -147,10 +188,13 @@
 
     // --- State -------------------------------------------------------------
     var sock = null;
+    var cmdSock = null;          // receives commands from the TD node (TD -> AE)
     var frameTimer = null;
     var liveTimer = null;        // fast realtime stream of static-layer transforms
     var liveBusy = false;        // guard so AEOP_live() calls don't pile up
     var connected = false;
+
+    var CMD_PORT = 7001;         // TD -> AE command channel (loopback)
 
     var SIG_INTERVAL_MS = 500;   // how often to check for changes
     var DEBOUNCE_MS = 500;       // wait for edits to settle before re-baking
@@ -288,6 +332,14 @@
             // path also tags layer types correctly (aeQuery.jsx classifies solids
             // as "solid"), so the per-type component menus see every layer.
             liveTimer = setInterval(sendLive, LIVE_INTERVAL_MS);
+
+            // TD -> AE command channel: listen for the node's Spout apply/remove.
+            try {
+                cmdSock = dgram.createSocket({ type: "udp4", reuseAddr: true });
+                cmdSock.on("error", function () {});
+                cmdSock.on("message", function (msg) { if (connected) handleCommand(msg); });
+                cmdSock.bind(CMD_PORT, "127.0.0.1");
+            } catch (e) { cmdSock = null; }
         });
 
         var btn = $("toggle");
@@ -300,6 +352,7 @@
         if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
         if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
         if (sock) { try { sock.close(); } catch (e) {} sock = null; }
+        if (cmdSock) { try { cmdSock.close(); } catch (e) {} cmdSock = null; }
         stopReader();
         var btn = $("toggle");
         btn.textContent = "Connect to TD";

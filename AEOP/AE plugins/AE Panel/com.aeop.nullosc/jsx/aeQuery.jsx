@@ -323,6 +323,100 @@ function AEOP_frame() {
            '","frame":' + AEOP__num(frame) + ',"numFrames":' + numFrames + '}';
 }
 
+// ===========================================================================
+//  Spout effect management - the TD node drives this (TD -> AE via OSC):
+//  when you pick a layer in the node it applies AELayerSpout to it, when you
+//  change selection it moves, when you delete the node it is removed. The menus
+//  themselves do NOT need the effect (they come from the query above), so all
+//  layers are listed before any effect is applied.
+// ===========================================================================
+var AEOP_SPOUT_MATCH = "AEOP AELayerSpout";
+
+function AEOP__compByName(name) {
+    var proj = app.project;
+    if (!proj) return null;
+    for (var i = 1; i <= proj.numItems; i++) {
+        var it = proj.item(i);
+        if ((it instanceof CompItem) && it.name === name) return it;
+    }
+    return null;
+}
+
+function AEOP__layerHasSpout(layer) {
+    try {
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return false;
+        for (var i = 1; i <= fx.numProperties; i++)
+            if (fx.property(i).matchName === AEOP_SPOUT_MATCH) return true;
+    } catch (e) {}
+    return false;
+}
+
+function AEOP__removeSpoutFromLayer(layer) {
+    var removed = false;
+    try {
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return false;
+        for (var i = fx.numProperties; i >= 1; i--) {
+            var p = fx.property(i);
+            if (p.matchName === AEOP_SPOUT_MATCH) { p.remove(); removed = true; }
+        }
+    } catch (e) {}
+    return removed;
+}
+
+// Apply AELayerSpout to comp/layerIndex (no-op if already present).
+function AEOP_applySpout(compName, layerIndex) {
+    try {
+        var comp = AEOP__compByName(compName);
+        if (!comp) return "no comp";
+        if (layerIndex < 1 || layerIndex > comp.numLayers) return "no layer";
+        var layer = comp.layer(layerIndex);
+        if (AEOP__layerHasSpout(layer)) return "ok";
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return "no fx group";
+        app.beginUndoGroup("AEOP apply Spout");
+        try { fx.addProperty(AEOP_SPOUT_MATCH); }
+        catch (e) { app.endUndoGroup(); return "cannot add: " + e.toString(); }
+        app.endUndoGroup();
+        return "ok";
+    } catch (e) { return "err " + e.toString(); }
+}
+
+// Remove AELayerSpout from comp/layerIndex.
+function AEOP_removeSpout(compName, layerIndex) {
+    try {
+        var comp = AEOP__compByName(compName);
+        if (!comp) return "no comp";
+        if (layerIndex < 1 || layerIndex > comp.numLayers) return "no layer";
+        app.beginUndoGroup("AEOP remove Spout");
+        var r = AEOP__removeSpoutFromLayer(comp.layer(layerIndex));
+        app.endUndoGroup();
+        return r ? "ok" : "absent";
+    } catch (e) { return "err " + e.toString(); }
+}
+
+// Safety net: strip AELayerSpout from EVERY layer in the project (clears
+// orphans left by a crash). Call manually / on demand - never automatically,
+// or it would yank the effect from layers other live nodes still target.
+function AEOP_removeAllSpout() {
+    var n = 0;
+    try {
+        var proj = app.project;
+        if (!proj) return "0";
+        app.beginUndoGroup("AEOP remove all Spout");
+        for (var i = 1; i <= proj.numItems; i++) {
+            var it = proj.item(i);
+            if (!(it instanceof CompItem)) continue;
+            for (var li = 1; li <= it.numLayers; li++)
+                if (AEOP__removeSpoutFromLayer(it.layer(li))) n++;
+        }
+        app.endUndoGroup();
+    } catch (e) {}
+    return String(n);
+}
+
+
 // AEOP_signature() - a compact string that changes when the comp STRUCTURE or
 // any KEYFRAMES change (layer added/removed/renamed, keyframe added/moved/edited).
 // Static transform values are deliberately NOT included: they are handled by the
