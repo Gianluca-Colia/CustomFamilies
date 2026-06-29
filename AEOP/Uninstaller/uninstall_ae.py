@@ -1,31 +1,22 @@
-﻿# AEOP - After Effects side UNINSTALLER
+﻿# AEOP - After Effects side UNINSTALLER (with live progress window)
 # =====================================================================
 # Callbacks file for the Parameter Execute DAT inside the Base COMP
-# "Uninstaller" (inside the AEOP component). Counterpart of the
-# "Installer" base / install_ae.py.
+# "Uninstaller" (inside the AEOP component). Twin of install_ae.py.
 #
 # SETUP (in TouchDesigner):
-#   1. Base COMP "Uninstaller" gets a custom PULSE parameter named
-#      "Uninstall" (par internal name: 'Uninstall').
-#   2. A Parameter Execute DAT inside it, with:
-#        - "Parameters" / op = the Base itself (parent())  -> "../" or "."
-#        - watch the custom page (Pulse = On)
-#        - DAT text synced to this file (Sync to File / Load on Start).
-#   3. Press the "Uninstall" pulse -> onPulse() runs the AE uninstall.
+#   1. Base COMP "Uninstaller" gets a custom PULSE parameter named "Uninstall".
+#   2. A Parameter Execute DAT inside it, watching the Base (op = "..") with
+#      Pulse = On, DAT text synced to this file (Sync to File / Load on Start).
+#   3. Press "Uninstall" -> onPulse() removes the AE side and opens a live
+#      progress window (progress bar + current action + final friendly recap).
 #
-# WHAT IT DOES (undoes install_ae.py, minimal):
-#   - removes the CEP panel from %APPDATA%\Adobe\CEP\extensions
-#   - removes AELayerSpout.aex from every detected AE version's Program
-#     Files Plug-ins folder via ONE elevated cmd.exe (single UAC prompt)
-#   - leaves PlayerDebugMode untouched on purpose (shared global flag;
-#     removing it could break other CEP extensions). An optional removal
-#     block is provided below, commented out.
+# WHAT IT DOES: removes the CEP panel (per-user) and deletes AELayerSpout.aex
+# from every AE Program Files Plug-ins folder via ONE elevated cmd.exe. Leaves
+# PlayerDebugMode in place (shared global). Does NOT delete the on-disk
+# framework folder (that belongs to the Custom families uninstaller).
 #
-# Does NOT delete the on-disk AEOP framework folder - that belongs to the
-# Custom families uninstaller. This only reverses the AE-side hookup.
-#
-# Fully defensive: every step is wrapped, so a failure is logged via
-# debug() and never raises out of the callback.
+# Fully defensive: never raises out of the callback; if the window can't be
+# built it falls back to a messageBox recap.
 # =====================================================================
 
 import os
@@ -34,15 +25,22 @@ import shutil
 PANEL_NAME = 'com.aeop.nullosc'
 AEX_NAME = 'AELayerSpout.aex'
 UNINSTALL_PAR = 'Uninstall'
+WINDOW_TITLE = 'AEOP - Disinstallazione After Effects'
+
+# --- runtime state ---
+_DAT_PATH = ''
+_BASE_PATH = ''
+_WIN = None
+_STEPS = []
+_RESULTS = []
+_REMAIN = []
+_REMOVED_ANY = False
+_RUNNING = False
 
 
 # =====================================================================
 # Parameter Execute DAT callbacks (full standard set - keep all of them).
-#   me   - this DAT
-#   par  - the Par object that changed
-#   val  - the current value of the par
-#   prev - the previous value of the par
-# Only onPulse is wired; the rest are required template stubs.
+#   me / par / val / prev.  Only onPulse is wired.
 # =====================================================================
 
 def onValueChange(par, prev):
@@ -50,7 +48,7 @@ def onValueChange(par, prev):
 
 def onPulse(par):
 	if par.name == UNINSTALL_PAR:
-		_uninstall_after_effects()
+		_start()
 	return
 
 def onExpressionChange(par, val, prev):
@@ -67,83 +65,131 @@ def onModeChange(par, val, prev):
 
 
 # =====================================================================
-# Uninstall implementation
+# Orchestration (one step per frame so the window repaints live)
 # =====================================================================
 
-def _uninstall_after_effects():
-	"""Remove the After Effects side of AEOP. Never raises."""
+def _start():
+	global _DAT_PATH, _BASE_PATH, _WIN, _STEPS, _RESULTS, _REMAIN, _REMOVED_ANY, _RUNNING
+	if _RUNNING:
+		return
+	_RUNNING = True
+	_DAT_PATH = me.path
+	_BASE_PATH = me.parent().path
+	_RESULTS = []
+	_REMAIN = []
+	_REMOVED_ANY = False
+	_STEPS = [
+		('Rimozione del pannello', _step_panel),
+		("Rimozione dell'effetto (conferma di Windows)", _step_effect),
+	]
 	try:
-		removed_any = False
-
-		# 1) CEP panel -> remove from per-user extensions (no elevation).
-		appdata = os.environ.get('APPDATA')
-		if appdata:
-			dest = os.path.join(appdata, 'Adobe', 'CEP', 'extensions', PANEL_NAME)
-			if os.path.isdir(dest):
-				try:
-					shutil.rmtree(dest, ignore_errors=True)
-					if not os.path.isdir(dest):
-						removed_any = True
-						debug('[AEOP uninstall] panel removed -> ' + dest)
-					else:
-						debug('[AEOP uninstall] panel still present: ' + dest)
-				except Exception as exc:
-					debug('[AEOP uninstall] panel remove failed: {}'.format(exc))
-
-		# 2) Effect .aex -> remove from each AE Plug-ins (Program Files: 1 UAC).
-		plug_dirs = _ae_plugin_dirs()
-		present = [d for d in plug_dirs
-		          if os.path.isfile(os.path.join(d, AEX_NAME))]
-		if present:
-			try:
-				_elevate_delete_from_plugins(present)
-			except Exception as exc:
-				debug('[AEOP uninstall] elevated delete failed: {}'.format(exc))
-			remaining = []
-			for d in present:
-				if os.path.isfile(os.path.join(d, AEX_NAME)):
-					remaining.append(d)
-					debug('[AEOP uninstall] NOT removed: ' + os.path.join(d, AEX_NAME))
-				else:
-					removed_any = True
-					debug('[AEOP uninstall] effect removed -> ' + d)
-			if remaining:
-				nlc = chr(10)
-				_message(
-					"Non sono riuscito a rimuovere " + AEX_NAME + " da:" + nlc + nlc +
-					nlc.join(remaining) + nlc + nlc +
-					"Chiudi After Effects (potrebbe tenere il file in uso) e riprova.")
-				return
-
-		# 3) PlayerDebugMode -> left in place on purpose (shared global). To
-		#    also reset it, uncomment this block:
-		# try:
-		# 	import winreg
-		# 	for v in (9, 10, 11, 12):
-		# 		try:
-		# 			winreg.DeleteValue(
-		# 				winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-		# 				               'Software\\Adobe\\CSXS.{}'.format(v), 0,
-		# 				               winreg.KEY_SET_VALUE),
-		# 				'PlayerDebugMode')
-		# 		except FileNotFoundError:
-		# 			pass
-		# 	debug('[AEOP uninstall] PlayerDebugMode removed (CSXS 9-12)')
-		# except Exception as exc:
-		# 	debug('[AEOP uninstall] registry cleanup failed: {}'.format(exc))
-
-		if removed_any:
-			_message("Plugin di After Effects rimosso.\n"
-			         "Riavvia After Effects per applicare la rimozione.")
-		else:
-			_message("Niente da rimuovere: il plugin di After Effects non risulta installato.")
-		debug('[AEOP uninstall] done.')
+		_WIN = _ProgressWindow(WINDOW_TITLE, len(_STEPS))
 	except Exception as exc:
-		try:
-			debug('[AEOP uninstall] uninstall error (ignored): {}'.format(exc))
-		except Exception:
-			pass
+		debug('[AEOP uninstall] window build failed (fallback to messagebox): {}'.format(exc))
+		_WIN = None
+	_show_step(0)
 
+
+def _show_step(i):
+	try:
+		if _WIN:
+			_WIN.set_doing(_STEPS[i][0], i)
+	except Exception:
+		pass
+	run("op({!r}).module._do_step({})".format(_DAT_PATH, i), delayFrames=2)
+
+
+def _do_step(i):
+	label, fn = _STEPS[i]
+	ok, note = True, ''
+	try:
+		ok, note = fn()
+	except Exception as exc:
+		ok, note = False, 'errore imprevisto'
+		debug('[AEOP uninstall] step "{}" error: {}'.format(label, exc))
+	try:
+		if _WIN:
+			_WIN.mark(label, ok, note, i + 1)
+	except Exception:
+		pass
+	_RESULTS.append((label, ok, note))
+	debug('[AEOP uninstall] {} -> {}{}'.format(label, 'OK' if ok else 'FAIL',
+	                                            (' (' + note + ')') if note else ''))
+	if (i + 1) >= len(_STEPS):
+		run("op({!r}).module._finish()".format(_DAT_PATH), delayFrames=1)
+	else:
+		run("op({!r}).module._show_step({})".format(_DAT_PATH, i + 1), delayFrames=1)
+
+
+def _finish():
+	global _RUNNING
+	try:
+		if _REMAIN:
+			headline = 'ATTENZIONE - alcuni file sono in uso'
+			footer = ("Non sono riuscito a rimuovere l'effetto da:\n  " +
+			          "\n  ".join(_REMAIN) + "\n"
+			          "Chiudi After Effects (tiene il file aperto) e premi di nuovo Uninstall.")
+		elif not _REMOVED_ANY:
+			headline = 'Niente da rimuovere'
+			footer = ("Il plugin per After Effects non risultava installato.\n"
+			          "Non e' stato modificato nulla.")
+		else:
+			headline = 'TUTTO OK - plugin rimosso'
+			footer = ("Il plugin per After Effects e' stato rimosso.\n"
+			          "Riavvia After Effects per applicare la rimozione.")
+		if _WIN:
+			_WIN.finish(headline, footer)
+		else:
+			_message(headline + "\n\n" + footer)
+		debug('[AEOP uninstall] DONE - ' + headline)
+	finally:
+		_RUNNING = False
+
+
+# =====================================================================
+# Steps (each returns (ok: bool, note: str))
+# =====================================================================
+
+def _step_panel():
+	global _REMOVED_ANY
+	appdata = os.environ.get('APPDATA')
+	if not appdata:
+		return True, 'niente da fare'
+	dest = os.path.join(appdata, 'Adobe', 'CEP', 'extensions', PANEL_NAME)
+	if not os.path.isdir(dest):
+		return True, 'gia assente'
+	shutil.rmtree(dest, ignore_errors=True)
+	if os.path.isdir(dest):
+		return False, 'non rimosso'
+	_REMOVED_ANY = True
+	return True, ''
+
+
+def _step_effect():
+	global _REMAIN, _REMOVED_ANY
+	plug_dirs = _ae_plugin_dirs()
+	present = [d for d in plug_dirs if os.path.isfile(os.path.join(d, AEX_NAME))]
+	if not present:
+		return True, 'gia assente'
+	try:
+		_elevate_delete_from_plugins(present)
+	except Exception:
+		return False, 'rimozione non autorizzata'
+	import time
+	try:
+		time.sleep(1)
+	except Exception:
+		pass
+	_REMAIN = [d for d in present if os.path.isfile(os.path.join(d, AEX_NAME))]
+	if _REMAIN:
+		return False, 'file in uso (AE aperto?)'
+	_REMOVED_ANY = True
+	return True, ''
+
+
+# =====================================================================
+# Helpers
+# =====================================================================
 
 def _ae_plugin_dirs():
 	"""Support Files/Plug-ins folder of every real AE install in Program Files."""
@@ -163,15 +209,17 @@ def _ae_plugin_dirs():
 
 
 def _elevate_delete_from_plugins(plug_dirs):
-	"""Delete AELayerSpout.aex from each plug dir via ONE elevated cmd.exe
-	(UAC), waiting for it to finish (ShellExecuteEx 'runas', hidden window)."""
-	import ctypes
-	from ctypes import wintypes
+	"""Delete AELayerSpout.aex from each plug dir via ONE elevated cmd.exe (UAC)."""
 	parts = []
 	for d in plug_dirs:
 		dst = os.path.join(d, AEX_NAME)
 		parts.append('del /F /Q "{}"'.format(dst))
-	params = '/c ' + ' & '.join(parts)
+	_elevate_and_wait('cmd.exe', '/c ' + ' & '.join(parts))
+
+
+def _elevate_and_wait(file, params, timeout_ms=120000):
+	import ctypes
+	from ctypes import wintypes
 
 	class SHELLEXECUTEINFO(ctypes.Structure):
 		_fields_ = [('cbSize', wintypes.DWORD), ('fMask', ctypes.c_ulong),
@@ -186,16 +234,108 @@ def _elevate_delete_from_plugins(plug_dirs):
 	sei.cbSize = ctypes.sizeof(sei)
 	sei.fMask = 0x00000040   # SEE_MASK_NOCLOSEPROCESS
 	sei.lpVerb = 'runas'
-	sei.lpFile = 'cmd.exe'
+	sei.lpFile = file
 	sei.lpParameters = params
 	sei.nShow = 0            # SW_HIDE
 	if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei)):
 		raise OSError('ShellExecuteExW runas failed')
 	if sei.hProcess:
-		ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, 30000)
+		ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, timeout_ms)
 		ctypes.windll.kernel32.CloseHandle(sei.hProcess)
 
 
 def _message(text):
-	"""Deferred message box so the callback stack unwinds first."""
+	"""Fallback (no window): deferred message box."""
 	run("ui.messageBox('Custom families - After Effects', {!r})".format(text), delayFrames=1)
+
+
+# =====================================================================
+# Live progress window (a Text DAT shown in a floating viewer; monospace)
+# =====================================================================
+
+class _ProgressWindow:
+	BAR_W = 26
+
+	def __init__(self, title, total):
+		self.title = title
+		self.total = max(1, total)
+		self.frac = 0.0
+		self.current = ''
+		self.headline = ''
+		self.footer = ''
+		self.log = []          # list of [text, status]
+		self.dat = self._build()
+		self._render()
+		try:
+			self.dat.openViewer(unique=True, borders=True)
+		except Exception as exc:
+			debug('[AEOP ui] openViewer failed: {}'.format(exc))
+
+	def _build(self):
+		host = op(_BASE_PATH)
+		old = host.op('aeop_progress')
+		if old:
+			try:
+				old.closeViewer()
+			except Exception:
+				pass
+			try:
+				old.destroy()
+			except Exception:
+				pass
+		return host.create(textDAT, 'aeop_progress')
+
+	def set_doing(self, label, idx):
+		self.current = label
+		self.frac = float(idx) / self.total
+		self.log.append([label, 'doing'])
+		self._render()
+
+	def mark(self, label, ok, note, done_count):
+		for entry in reversed(self.log):
+			if entry[1] == 'doing':
+				entry[0] = label + (' - ' + note if note else '')
+				entry[1] = 'ok' if ok else 'fail'
+				break
+		self.frac = float(done_count) / self.total
+		self.current = ''
+		self._render()
+
+	def finish(self, headline, footer):
+		self.frac = 1.0
+		self.current = ''
+		self.headline = headline
+		self.footer = footer
+		self._render()
+
+	def _render(self):
+		f = int(round(self.frac * self.BAR_W))
+		f = max(0, min(self.BAR_W, f))
+		bar = '#' * f + '-' * (self.BAR_W - f)
+		pct = int(round(self.frac * 100))
+		L = ['']
+		L.append('  ' + self.title)
+		L.append('  ' + '=' * 50)
+		L.append('')
+		L.append('  [' + bar + ']  ' + str(pct) + '%')
+		L.append('')
+		if self.headline:
+			L.append('  ' + self.headline)
+			L.append('')
+		elif self.current:
+			L.append('  In corso: ' + self.current)
+			L.append('')
+		marks = {'ok': '  [ OK ] ', 'fail': '  [ X  ] ',
+		         'doing': '  [ .. ] ', 'pending': '  [    ] '}
+		for txt, st in self.log:
+			L.append(marks.get(st, '        ') + txt)
+		if self.footer:
+			L.append('')
+			L.append('  ' + '-' * 50)
+			for fl in self.footer.split('\n'):
+				L.append('  ' + fl)
+		L.append('')
+		try:
+			self.dat.text = '\n'.join(L) + '\n'
+		except Exception:
+			pass
