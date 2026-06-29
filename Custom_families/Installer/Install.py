@@ -24,6 +24,10 @@ EXTRACTED_FOLDER_TEMPLATE = '{repo}-{branch}'
 # fix to the typo would land it as `Developmentmode`. Both work.
 DEV_MODE_PAR_CANDIDATES = ('Devepmentmode', 'Developmentmode', 'Devmode')
 DOWNLOAD_DEST_FOLDER_NAME = 'Custom families'    # final folder name (with space) under TD AppData
+# Files Windows has LOCKED (AEOP's loaded C++ DLLs) can't be deleted on a
+# re-download; _force_remove_tree renames them into this sibling folder so the
+# install tree can be replaced, and _sweep_quarantine clears it on a later run.
+LOCKED_QUARANTINE_NAME = '.cf_locked_old'
 PLUGINS_ROOT_NAME = 'Plugins'
 PLUGINS_ROOT_PATH = '/ui/Plugins'
 CUSTOM_FAMILIES_NAME = 'Custom_families'
@@ -618,17 +622,26 @@ class Install:
 			self._handle_offline_failure()
 			raise
 
-		# Rename CustomFamilies-<branch> → Custom families. If the destination
-		# already exists, drop it first (the just-downloaded copy is the
-		# authoritative one).
+		# Replace the existing install with the freshly extracted copy. The old
+		# folder may contain DLLs that TouchDesigner has LOADED (AEOP's C++ Custom
+		# OPs: AENullCHOP.dll, AESpoutInTOP.dll). Windows refuses to DELETE a loaded
+		# DLL (WinError 5), so a plain rmtree fails on any re-download / branch
+		# switch / update. _force_remove_tree instead RENAMES any locked file into a
+		# quarantine folder (a loaded DLL can still be renamed), so the tree clears
+		# and can be recreated. NOTE: an updated DLL only takes effect after a
+		# TouchDesigner RESTART (the old one stays mapped this session).
 		extracted_path = os.path.join(td_root, self._extracted_folder_name())
 		final_path = os.path.join(td_root, DOWNLOAD_DEST_FOLDER_NAME)
+		quarantine_dir = os.path.join(td_root, LOCKED_QUARANTINE_NAME)
+		self._sweep_quarantine(quarantine_dir)   # clear DLLs freed by an earlier restart
 		try:
 			if os.path.isdir(final_path):
-				shutil.rmtree(final_path)
+				self._force_remove_tree(final_path, quarantine_dir)
 			os.rename(extracted_path, final_path)
-		except Exception:
-			self._handle_offline_failure()
+		except Exception as exc:
+			debug('[Custom_families install] replace failed: {}: {}'.format(
+				type(exc).__name__, exc))
+			self._handle_locked_failure()
 			raise
 
 		# Cleanup zip
@@ -636,6 +649,72 @@ class Install:
 			os.remove(zip_path)
 		except Exception:
 			pass
+
+	def _force_remove_tree(self, target, quarantine_dir):
+		"""Remove a directory tree, tolerating files Windows has locked (typically
+		AEOP's loaded C++ DLLs). A file that can't be deleted is RENAMED into
+		quarantine_dir - a loaded DLL can be renamed even though it can't be
+		deleted - so the tree can be fully cleared and recreated. Quarantined files
+		are cleaned up by _sweep_quarantine on a later run, once TouchDesigner has
+		released them (after a restart)."""
+		import uuid
+		for root, dirs, files in os.walk(target, topdown=False):
+			for name in files:
+				fp = os.path.join(root, name)
+				try:
+					os.remove(fp)
+				except OSError:
+					try:
+						os.makedirs(quarantine_dir, exist_ok=True)
+						os.rename(fp, os.path.join(quarantine_dir, uuid.uuid4().hex + '_' + name))
+						debug('[Custom_families] locked file quarantined: ' + fp)
+					except OSError as exc:
+						debug('[Custom_families] could not remove/rename {}: {}'.format(fp, exc))
+						raise
+			for name in dirs:
+				try:
+					os.rmdir(os.path.join(root, name))
+				except OSError:
+					pass
+		try:
+			os.rmdir(target)
+		except OSError:
+			pass
+
+	def _sweep_quarantine(self, quarantine_dir):
+		"""Best-effort delete of files quarantined by an earlier _force_remove_tree
+		(loaded DLLs that have since been released, e.g. after a TD restart). Files
+		still locked simply stay until the next sweep; never raises."""
+		try:
+			if not os.path.isdir(quarantine_dir):
+				return
+			for name in os.listdir(quarantine_dir):
+				try:
+					os.remove(os.path.join(quarantine_dir, name))
+				except OSError:
+					pass
+			try:
+				os.rmdir(quarantine_dir)
+			except OSError:
+				pass
+		except Exception:
+			pass
+
+	def _handle_locked_failure(self):
+		"""Replace failed because files are still in use (a loaded DLL that could
+		neither be deleted nor renamed). Tell the user to restart TD - NOT a
+		connection problem - then clear the partial install COMP."""
+		run(
+			"ui.messageBox('Custom families', "
+			"'Aggiornamento non riuscito: alcuni file sono in uso. Chiudi e riapri "
+			"TouchDesigner, poi riprova. Il componente verra rimosso.')",
+			delayFrames=1
+		)
+		run(
+			"target = op(args[0]); target.destroy() if target is not None else None",
+			CUSTOM_FAMILIES_PATH,
+			delayFrames=2
+		)
 
 	def _download_zip(self, url, dest_path):
 		"""Stream a URL to disk via urlopen + chunked write.

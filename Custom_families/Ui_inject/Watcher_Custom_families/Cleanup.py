@@ -56,9 +56,23 @@ def _remove_disk_folder():
 	if not os.path.isdir(SCRIPTS_DISK_ROOT):
 		return
 
+	import uuid
+	# Files Windows has LOCKED (AEOP's loaded C++ DLLs) can't be deleted but CAN
+	# be renamed; move them into a sibling quarantine so the tree clears. The
+	# installer's _sweep_quarantine removes them on a later run once TD releases
+	# them (after a restart). Same folder name as Install.LOCKED_QUARANTINE_NAME.
+	quarantine_dir = os.path.join(os.path.dirname(SCRIPTS_DISK_ROOT), '.cf_locked_old')
 	failures = []
 
 	def _on_error(func, path, exc_info):
+		try:
+			if os.path.isfile(path):
+				os.makedirs(quarantine_dir, exist_ok=True)
+				os.rename(path, os.path.join(
+					quarantine_dir, uuid.uuid4().hex + '_' + os.path.basename(path)))
+				return
+		except OSError:
+			pass
 		failures.append((path, exc_info[1]))
 
 	try:
