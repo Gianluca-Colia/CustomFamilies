@@ -22,7 +22,7 @@
 #     value is the AE layer INDEX, 1-based), plus an optional Detach pulse.
 # =====================================================================
 
-OSC_DAT = 'oscout_ae'        # name of the OSC Out DAT inside the node
+OSC_DAT = 'oscout1'          # name of the OSC Out DAT inside the node
 TARGET_KEY = 'aeop_spout_target'   # stored [compName, layerIndex] currently applied
 COMP_PAR = 'Comp'
 LAYER_PAR = 'Layer'
