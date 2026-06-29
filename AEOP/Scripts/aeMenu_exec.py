@@ -1,25 +1,27 @@
 ﻿# AEOP - menu mirror (TD node side)  --  CHOP Execute DAT
 # =====================================================================
-# The C++ "AE Layer" CHOP (cplusplus1) builds the cascading dynamic menus
-# natively: Layertype -> Project -> Comp -> Layer, from the layers it receives
-# over OSC. The wrapper exposes its OWN custom menus with the SAME names, but
-# they are NOT bound to the CHOP. This script keeps them in sync:
-#   - mirrors each level's menu items (names/labels) from the CHOP -> wrapper
-#   - auto-selects the first valid entry where the current one is empty/invalid
-#     so the cascade starts on its own
-#   - pushes the wrapper selections back into the CHOP so its dynamic menus
-#     filter correctly (Layertype/Project gate Comp, etc.)
+# Both C++ operators carry the SAME cascading dynamic menus
+# (Layertype -> Project -> Comp -> Layer):
+#   - cplusplus1 : the "AE Layer" CHOP   (transform of the selected layer)
+#   - cplusplus2 : the Spout In TOP      (pixels of the selected layer)
+# The wrapper exposes its own same-named menus, NOT bound to either op. This
+# script keeps everything in lock-step:
+#   - mirrors the menu items (names/labels) from MENU_SRC -> wrapper
+#   - auto-selects the first valid entry per level so the cascade starts
+#   - pushes the wrapper selection into BOTH C++ ops (TARGETS) so the CHOP and
+#     the TOP always point at the same layer and update together
 #
-# DAT TYPE: CHOP Execute DAT - attach to the CHOP carrying the AE layer signal
-# (fires on data change -> Sync()). aeSpout_exec (Parameter Execute on the
-# wrapper) also calls Sync() when the user changes a menu.
+# DAT TYPE: CHOP Execute DAT - attach to a CHOP that changes when AE data
+# arrives (e.g. cplusplus1) so it re-syncs live. aeSpout_exec (Parameter
+# Execute on the wrapper) also calls Sync() when the user changes a menu.
 # =====================================================================
 
-SRC_CHOP = 'cplusplus1'           # the C++ AE Layer CHOP with the dynamic menus
+MENU_SRC = 'cplusplus1'                    # read the menu lists from here
+TARGETS = ('cplusplus1', 'cplusplus2')     # push the SELECTION to BOTH (CHOP + TOP)
 LAYERTYPE_PAR = 'Layertype'
 CASCADE = ('Project', 'Comp', 'Layer')
 
-_SYNCING = [False]                # re-entrancy guard (setting .val fires execs)
+_SYNCING = [False]                          # re-entrancy guard
 
 
 def is_syncing():
@@ -36,35 +38,50 @@ def _set_menu(par, names, labels):
 		par.menuLabels = labels
 
 
-def Sync():
-	"""Mirror the CHOP's cascading menus onto the wrapper and drive the CHOP's
-	selection so the cascade flows. Cheap when nothing changed (compare-before-
-	set), so it is safe to call often."""
-	if _SYNCING[0]:
-		return
+def _push(parname, value):
+	"""Set parname=value on EVERY target op (CHOP + TOP), if different."""
 	n = parent()
-	c = n.op(SRC_CHOP)
-	if c is None:
-		return
-	_SYNCING[0] = True
-	try:
-		# Layertype gates everything downstream: push wrapper -> CHOP.
+	for name in TARGETS:
+		o = n.op(name)
+		if o is None:
+			continue
+		p = getattr(o.par, parname, None)
+		if p is None:
+			continue
 		try:
-			if c.par.Layertype.eval() != n.par.Layertype.eval():
-				c.par.Layertype.val = n.par.Layertype.eval()
+			if p.eval() != value:
+				p.val = value
 		except Exception:
 			pass
 
-		# Project -> Comp -> Layer. Each level's CHOP menu is filtered by the
-		# levels above, so we set each value before reading the next level.
+
+def Sync():
+	"""Mirror MENU_SRC's cascading menus onto the wrapper and drive BOTH C++ ops'
+	selection so CHOP and TOP follow the same layer. Compare-before-set, so it is
+	cheap to call often."""
+	if _SYNCING[0]:
+		return
+	n = parent()
+	src = n.op(MENU_SRC)
+	if src is None:
+		return
+	_SYNCING[0] = True
+	try:
+		# Layertype gates everything: push wrapper value to both ops first.
+		try:
+			_push(LAYERTYPE_PAR, n.par.Layertype.eval())
+		except Exception:
+			pass
+		# Project -> Comp -> Layer. Set each level before reading the next, since
+		# the lower menus are filtered by the higher selections.
 		for name in CASCADE:
-			cpar = getattr(c.par, name, None)
+			spar = getattr(src.par, name, None)
 			wpar = getattr(n.par, name, None)
-			if cpar is None or wpar is None:
+			if spar is None or wpar is None:
 				continue
 			try:
-				names = list(cpar.menuNames)
-				labels = list(cpar.menuLabels)
+				names = list(spar.menuNames)
+				labels = list(spar.menuLabels)
 			except Exception:
 				names, labels = [], []
 			_set_menu(wpar, names, labels)
@@ -72,11 +89,7 @@ def Sync():
 			newval = cur if (cur in names) else (names[0] if names else '')
 			if wpar.eval() != newval:
 				wpar.val = newval
-			try:
-				if cpar.eval() != newval:
-					cpar.val = newval
-			except Exception:
-				pass
+			_push(name, newval)   # -> both CHOP and TOP
 	except Exception as exc:
 		debug('[AEOP menu] sync failed: {}'.format(exc))
 	finally:
