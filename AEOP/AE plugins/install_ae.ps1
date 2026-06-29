@@ -1,22 +1,24 @@
 # install_ae.ps1 - installs the AEOP "After Effects -> TouchDesigner" pieces for
-# the Custom families plugin. Runs entirely in the CURRENT USER context, so it
-# needs NO administrator rights and shows NO UAC prompt.
+# the Custom families plugin.
 #
 # GUARD: if After Effects is NOT installed, the script does NOTHING and exits.
 #
 # When AE IS present it installs:
-#   1) AELayerSpout.aex -> %APPDATA%\Adobe\Common\Plug-ins\7.0\MediaCore\
-#        This Common MediaCore folder is SHARED by every installed AE version
-#        (24, 25, 26, ...), so one copy covers them all - no admin, and no
-#        double-load (copying into each version's own Program Files\Plug-ins
-#        would make AE load the effect twice -> conflict).
+#   1) AELayerSpout.aex -> <AE>\Support Files\Plug-ins\ for EVERY installed AE
+#      version (2024, 2025, 2026, ...). This is the location AE actually scans
+#      for effects; the per-user Common\MediaCore folder is NOT reliably loaded.
+#      These folders live under Program Files, so this ONE step needs admin -
+#      the script self-elevates a single child process that copies into all the
+#      version folders at once (one UAC prompt). Each version loads only its own
+#      copy, so there is no double-load.
 #   2) PlayerDebugMode = 1 (HKCU, CSXS 9..12) so the unsigned CEP panel can load.
 #   3) CEP panel com.aeop.nullosc -> %APPDATA%\Adobe\CEP\extensions\
+# Steps 2 and 3 stay in the CURRENT USER context (HKCU / %APPDATA%), so they are
+# never run elevated (which would target the wrong user's hive/profile).
 #
-# All source paths derive from $PSScriptRoot, so it works wherever the AEOP
-# package is installed (...\Custom families\AEOP\AE plugins\). Idempotent. The
-# C++ operators (.dll) are NOT handled here - the TD operators read them in place
-# from ...\AEOP\Dll\.
+# Source paths derive from $PSScriptRoot (...\Custom families\AEOP\AE plugins\).
+# Idempotent. The C++ operators (.dll) are NOT handled here - the TD operators
+# read them in place from ...\AEOP\Dll\.
 #
 # Call with a single line, e.g. from the Custom families installer:
 #   powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "install_ae.ps1"
@@ -26,50 +28,78 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path     # ...\AEOP\AE plugin
 
 function Log($m) { Write-Output "[install_ae] $m" }
 
-# Detect every installed After Effects version. Registry first (survives custom
-# install locations), then the default Program Files\Adobe folder as a fallback.
+# Every installed AE: returns objects { Name; Plugins } where Plugins is the
+# version's "Support Files\Plug-ins" folder. Program Files folders first (give
+# friendly names like 2026), registry InstallPath as a fallback for custom
+# install locations.
 function Get-AEInstalls {
-    $names = @()
-    # Prefer human-readable Program Files folder names ("Adobe After Effects 2026").
+    $list = @()
     $pf = Join-Path $env:ProgramFiles 'Adobe'
     if (Test-Path $pf) {
         foreach ($d in (Get-ChildItem $pf -Directory -Filter 'Adobe After Effects*' -ErrorAction SilentlyContinue)) {
-            $names += ($d.Name -replace '^Adobe After Effects\s*', '')
+            $plug = Join-Path $d.FullName 'Support Files\Plug-ins'
+            if (Test-Path $plug) {
+                $list += [pscustomobject]@{ Name = ($d.Name -replace '^Adobe After Effects\s*', ''); Plugins = $plug }
+            }
         }
     }
-    # Registry fallback only when nothing was found under Program Files (covers
-    # AE installed to a custom location). Avoids listing the same version twice.
-    if ($names.Count -eq 0) {
+    if ($list.Count -eq 0) {
         foreach ($rr in @('HKLM:\SOFTWARE\Adobe\After Effects',
                           'HKLM:\SOFTWARE\WOW6432Node\Adobe\After Effects')) {
             if (Test-Path $rr) {
                 foreach ($k in (Get-ChildItem $rr -ErrorAction SilentlyContinue)) {
                     $ip = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).InstallPath
-                    if ($ip -and (Test-Path $ip)) { $names += $k.PSChildName }
+                    if ($ip) {
+                        foreach ($cand in @((Join-Path $ip 'Support Files\Plug-ins'), (Join-Path $ip 'Plug-ins'))) {
+                            if (Test-Path $cand) {
+                                $list += [pscustomobject]@{ Name = $k.PSChildName; Plugins = $cand }
+                                break
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    return ($names | Sort-Object -Unique)
+    return $list
 }
 
 try {
     # --- GUARD: do nothing unless AE is installed -------------------------
-    $versions = @(Get-AEInstalls)
-    if ($versions.Count -eq 0) {
+    $installs = @(Get-AEInstalls)
+    if ($installs.Count -eq 0) {
         Log "After Effects not detected - nothing to do."
         exit 0
     }
-    Log ("After Effects detected: " + ($versions -join ', ') +
-         "  (one shared MediaCore install covers all of them)")
+    Log ("After Effects detected: " + (($installs | ForEach-Object { $_.Name }) -join ', '))
 
-    # --- 1) Effect .aex -> per-user shared MediaCore (no admin) -----------
+    # --- 1) Effect .aex -> each version's Plug-ins (admin via 1 UAC) ------
     $aex = Join-Path $here 'AELayerSpout.aex'
     if (Test-Path $aex) {
-        $mediaCore = Join-Path $env:APPDATA 'Adobe\Common\Plug-ins\7.0\MediaCore'
-        New-Item -ItemType Directory -Force -Path $mediaCore | Out-Null
-        Copy-Item $aex (Join-Path $mediaCore 'AELayerSpout.aex') -Force
-        Log "effect -> $mediaCore"
+        $needElevation = @()
+        foreach ($ae in $installs) {
+            $dest = Join-Path $ae.Plugins 'AELayerSpout.aex'
+            try {
+                Copy-Item -LiteralPath $aex -Destination $dest -Force -ErrorAction Stop
+                Log "effect -> $($ae.Plugins)"
+            } catch {
+                $needElevation += $ae.Plugins      # Program Files -> needs admin
+            }
+        }
+        if ($needElevation.Count -gt 0) {
+            $cmds = foreach ($plug in $needElevation) {
+                "Copy-Item -LiteralPath '$aex' -Destination '" + (Join-Path $plug 'AELayerSpout.aex') + "' -Force"
+            }
+            $script = ($cmds -join '; ')
+            $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script))
+            $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru `
+                 -ArgumentList '-NoProfile', '-NonInteractive', '-EncodedCommand', $enc
+            if ($p.ExitCode -eq 0) {
+                Log ("effect (elevated) -> " + ($needElevation -join ' | '))
+            } else {
+                Log "WARN: elevated copy returned exit $($p.ExitCode) (UAC declined? AE open?)"
+            }
+        }
     } else {
         Log "WARN: AELayerSpout.aex not found at $aex"
     }
