@@ -23,7 +23,7 @@ import os
 import shutil
 
 PANEL_NAME = 'com.aeop.nullosc'
-AEX_NAME = 'AELayerSpout.aex'
+AEX_NAMES = ('AELayerSpout.aex', 'AENullOSC.aex')   # all AE plugins to remove
 UNINSTALL_PAR = 'Uninstall'
 WINDOW_TITLE = 'AEOP - Disinstallazione After Effects'
 
@@ -168,7 +168,8 @@ def _step_panel():
 def _step_effect():
 	global _REMAIN, _REMOVED_ANY
 	plug_dirs = _ae_plugin_dirs()
-	present = [d for d in plug_dirs if os.path.isfile(os.path.join(d, AEX_NAME))]
+	present = [d for d in plug_dirs
+	          if any(os.path.isfile(os.path.join(d, n)) for n in AEX_NAMES)]
 	if not present:
 		return True, 'gia assente'
 	try:
@@ -180,7 +181,8 @@ def _step_effect():
 		time.sleep(1)
 	except Exception:
 		pass
-	_REMAIN = [d for d in present if os.path.isfile(os.path.join(d, AEX_NAME))]
+	_REMAIN = [d for d in present
+	           if any(os.path.isfile(os.path.join(d, n)) for n in AEX_NAMES)]
 	if _REMAIN:
 		return False, 'file in uso (AE aperto?)'
 	_REMOVED_ANY = True
@@ -209,11 +211,12 @@ def _ae_plugin_dirs():
 
 
 def _elevate_delete_from_plugins(plug_dirs):
-	"""Delete AELayerSpout.aex from each plug dir via ONE elevated cmd.exe (UAC)."""
+	"""Delete every effect (AEX_NAMES) from each plug dir via ONE elevated
+	cmd.exe (single UAC)."""
 	parts = []
-	for d in plug_dirs:
-		dst = os.path.join(d, AEX_NAME)
-		parts.append('del /F /Q "{}"'.format(dst))
+	for name in AEX_NAMES:
+		for d in plug_dirs:
+			parts.append('del /F /Q "{}"'.format(os.path.join(d, name)))
 	_elevate_and_wait('cmd.exe', '/c ' + ' & '.join(parts))
 
 

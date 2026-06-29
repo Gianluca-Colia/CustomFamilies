@@ -24,7 +24,7 @@ import shutil
 
 SCRIPTS_DISK_ROOT = os.path.join(app.preferencesFolder, 'Custom families')
 PLUGINS_SRC = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins')
-AEX_NAME = 'AELayerSpout.aex'
+AEX_NAMES = ('AELayerSpout.aex', 'AENullOSC.aex')   # all AE plugins to install
 PANEL_NAME = 'com.aeop.nullosc'
 INSTALL_PAR = 'Install'
 WINDOW_TITLE = 'AEOP - Installazione After Effects'
@@ -84,7 +84,7 @@ def _start():
 		('Controllo di After Effects', _step_detect),
 		('Installazione del pannello', _step_panel),
 		('Configurazione di After Effects', _step_registry),
-		("Copia dell'effetto (conferma di Windows)", _step_effect),
+		("Copia degli effetti (conferma di Windows)", _step_effect),
 	]
 	try:
 		_WIN = _ProgressWindow(WINDOW_TITLE, len(_STEPS))
@@ -191,11 +191,11 @@ def _step_registry():
 
 def _step_effect():
 	global _BLOCKED
-	aex_src = os.path.join(PLUGINS_SRC, AEX_NAME)
-	if not os.path.isfile(aex_src):
-		return False, 'file effetto mancante'
+	present_names = [n for n in AEX_NAMES if os.path.isfile(os.path.join(PLUGINS_SRC, n))]
+	if not present_names:
+		return False, 'file effetto mancanti'
 	try:
-		_elevate_copy_to_plugins(aex_src, _PLUG_DIRS)
+		_elevate_copy_to_plugins(present_names, _PLUG_DIRS)
 	except Exception:
 		return False, 'copia non autorizzata'
 	import time
@@ -203,7 +203,9 @@ def _step_effect():
 		time.sleep(2)   # give a real-time antivirus a moment to act, if it will
 	except Exception:
 		pass
-	_BLOCKED = [d for d in _PLUG_DIRS if not os.path.isfile(os.path.join(d, AEX_NAME))]
+	# A folder is "blocked" if it is missing ANY of the effects we tried to copy.
+	_BLOCKED = [d for d in _PLUG_DIRS
+	            if any(not os.path.isfile(os.path.join(d, n)) for n in present_names)]
 	if _BLOCKED:
 		return False, "bloccato dall'antivirus"
 	return True, ''
@@ -240,12 +242,16 @@ def _ae_version_label(plug_dir):
 		return '?'
 
 
-def _elevate_copy_to_plugins(aex_src, plug_dirs):
-	"""Copy aex_src into each plug dir via ONE elevated cmd.exe (UAC), waiting."""
+def _elevate_copy_to_plugins(names, plug_dirs):
+	"""Copy each effect (names) into every plug dir via ONE elevated cmd.exe
+	(single UAC), waiting for it to finish."""
 	parts = []
-	for d in plug_dirs:
-		dst = os.path.join(d, AEX_NAME)
-		parts.append('copy /Y "{}" "{}"'.format(aex_src, dst))
+	for name in names:
+		src = os.path.join(PLUGINS_SRC, name)
+		for d in plug_dirs:
+			parts.append('copy /Y "{}" "{}"'.format(src, os.path.join(d, name)))
+	if not parts:
+		raise OSError('no effect files to copy')
 	_elevate_and_wait('cmd.exe', '/c ' + ' & '.join(parts))
 
 
