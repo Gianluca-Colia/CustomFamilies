@@ -467,10 +467,14 @@ class Install:
 			# poller and returns immediately; the actual enable happens
 			# whenever Custom.par.Install == 1.
 			('Enable Server (after Local)', lambda c: self._enable_server_after_local_ready(c)),
-			# Install the After Effects side LAST, just before the install is marked
-			# complete: the AELayerSpout.aex effect + CEP panel + PlayerDebugMode, so
-			# AE can talk to the AEOP operators. Fire-and-forget, user context, no UAC.
+			# ===================== AE INSTALL (optional) =====================
+			# KILL SWITCH: to DISABLE the After Effects install, comment out
+			# ONLY the single tuple line just below. Nothing else depends on it -
+			# the rest of the Custom families install is completely unaffected.
+			# (You can leave the _install_after_effects method in place; it just
+			# won't be called.)
 			('Install After Effects plugin', lambda c: self._install_after_effects()),
+			# =====================  end AE INSTALL  =====================
 		]
 
 	def _run_ui_install(self, custom_families_comp):
@@ -1168,30 +1172,67 @@ class Install:
 		return None
 
 	def _install_after_effects(self):
-		"""Install the bundled After Effects side: the AELayerSpout.aex effect, the
-		CEP panel, and the PlayerDebugMode registry flag, by delegating to the
-		package's install_ae.ps1. That script runs entirely in the user context
-		(per-user MediaCore plug-in path + HKCU), so there is NO UAC prompt.
+		"""[AE INSTALL - optional] Install the After Effects side of AEOP in PURE
+		PYTHON (no PowerShell, no admin/UAC, no separate script): the
+		AELayerSpout.aex effect, the CEP panel, and the PlayerDebugMode registry
+		flag. Every target is a PER-USER folder (%APPDATA%), so antivirus does not
+		quarantine it the way it does for Program Files, and no elevation is needed.
 
-		Fire-and-forget: launched with Popen and not awaited, so a slow AE install
-		never freezes TD. A missing script or launch error is logged and ignored -
-		the TD-side install still completes. AE must be restarted to load them.
-		The C++ operators (.dll) are read in place from AEOP/Dll and need no install.
+		KILL SWITCH: this whole feature hangs off ONE line in _install_steps()
+		(see the 'AE INSTALL' banner there) - comment that line to disable it.
+		FULLY DEFENSIVE: every step is wrapped so a failure is logged and swallowed;
+		it can NEVER raise and break the Custom families install. The C++ operators
+		(.dll) are read in place from AEOP/Dll and need no install.
 		"""
-		import subprocess
-		script = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins', 'install_ae.ps1')
-		if not os.path.isfile(script):
-			debug('[Custom_families] AE installer not found, skipping: {}'.format(script))
-			return
 		try:
-			subprocess.Popen(
-				['powershell.exe', '-NonInteractive', '-NoProfile',
-				 '-ExecutionPolicy', 'Bypass', '-File', script],
-				creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-			)
-			debug('[Custom_families] launched AE installer: {}'.format(script))
+			import winreg
+			plugins_src = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins')
+			aex_src = os.path.join(plugins_src, 'AELayerSpout.aex')
+			panel_src = os.path.join(plugins_src, 'AE Panel', 'com.aeop.nullosc')
+			appdata = os.environ.get('APPDATA')
+			if not appdata:
+				debug('[Custom_families AE] APPDATA not set; skipping.')
+				return
+
+			# 1) Effect .aex -> per-user shared MediaCore (read by all AE versions).
+			if os.path.isfile(aex_src):
+				try:
+					mediacore = os.path.join(appdata, 'Adobe', 'Common', 'Plug-ins', '7.0', 'MediaCore')
+					os.makedirs(mediacore, exist_ok=True)
+					shutil.copy2(aex_src, os.path.join(mediacore, 'AELayerSpout.aex'))
+					debug('[Custom_families AE] effect -> ' + mediacore)
+				except Exception as exc:
+					debug('[Custom_families AE] effect copy failed: {}'.format(exc))
+
+			# 2) CEP panel -> per-user extensions.
+			if os.path.isdir(panel_src):
+				try:
+					ext_dir = os.path.join(appdata, 'Adobe', 'CEP', 'extensions')
+					dest = os.path.join(ext_dir, 'com.aeop.nullosc')
+					os.makedirs(ext_dir, exist_ok=True)
+					if os.path.isdir(dest):
+						shutil.rmtree(dest, ignore_errors=True)
+					shutil.copytree(panel_src, dest)
+					debug('[Custom_families AE] panel -> ' + dest)
+				except Exception as exc:
+					debug('[Custom_families AE] panel copy failed: {}'.format(exc))
+
+			# 3) PlayerDebugMode=1 (HKCU) so the unsigned CEP panel can load.
+			try:
+				for v in (9, 10, 11, 12):
+					k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, 'Software\\Adobe\\CSXS.{}'.format(v))
+					winreg.SetValueEx(k, 'PlayerDebugMode', 0, winreg.REG_SZ, '1')
+					winreg.CloseKey(k)
+				debug('[Custom_families AE] PlayerDebugMode=1 (CSXS 9-12)')
+			except Exception as exc:
+				debug('[Custom_families AE] registry failed: {}'.format(exc))
+
+			debug('[Custom_families AE] done (restart After Effects to load).')
 		except Exception as exc:
-			debug('[Custom_families] AE install launch failed: {}'.format(exc))
+			try:
+				debug('[Custom_families AE] install error (ignored): {}'.format(exc))
+			except Exception:
+				pass
 
 	def _show_message(self, text):
 		run("ui.messageBox('Custom families', {!r})".format(text), delayFrames=1)
