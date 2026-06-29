@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>AE &#8594; Touchdesigner</title>
+    <style>
+        body {
+            background: #2b2b2b;
+            color: #d0d0d0;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            font-size: 12px;
+            margin: 0;
+            padding: 12px;
+        }
+        h1 { font-size: 13px; margin: 0 0 10px 0; color: #fff; }
+        .row { display: flex; align-items: center; margin-bottom: 8px; }
+        .row label { width: 90px; color: #9a9a9a; }
+        .row input { flex: 1; background: #1e1e1e; border: 1px solid #444;
+                     color: #eee; padding: 4px 6px; border-radius: 3px; }
+        button {
+            width: 100%; padding: 9px; margin-top: 6px; border: none;
+            border-radius: 4px; font-size: 13px; cursor: pointer; color: #fff;
+        }
+        #bake { background: #2f6db0; }
+        #bake:hover { background: #3a7fcc; }
+        #toggle.on  { background: #b03a3a; }
+        #toggle.off { background: #3a7d3a; }
+        .hint { color: #777; font-size: 10px; margin: 2px 0 8px 0; }
+        #status { margin-top: 10px; padding: 8px; background: #1e1e1e;
+                  border-radius: 4px; font-family: Consolas, monospace;
+                  font-size: 11px; white-space: pre-wrap; min-height: 48px; }
+    </style>
+</head>
+<body>
+    <h1>AE &#8594; Touchdesigner</h1>
+
+    <!-- OSC host/port removed from the UI: they are fixed (multicast
+         239.255.42.99:7000) and shared with the TD CHOP/TOP under the hood
+         (see getHostPort() in js/main.js). -->
+
+    <button id="toggle" class="off">Connect to TD</button>
+    <div class="hint">Auto-bakes the Null animation and re-bakes whenever you edit it.
+    The playhead (scrub AND playback) is read separately by the UI-Automation
+    reader (ae_preview_reader.py). Keep that running for TD to follow AE.</div>
+
+    <div id="status">Idle.</div>
+
+    <script src="./js/main.js"></script>
+</body>
+</html>
