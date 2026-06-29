@@ -192,9 +192,12 @@
     var frameTimer = null;
     var liveTimer = null;        // fast realtime stream of static-layer transforms
     var liveBusy = false;        // guard so AEOP_live() calls don't pile up
+    var collectTimer = null;     // slow full-project broadcast (keeps menus full)
+    var collectBusy = false;     // guard so AEOP_collect() calls don't pile up
     var connected = false;
 
     var CMD_PORT = 7001;         // TD -> AE command channel (loopback)
+    var COLLECT_INTERVAL_MS = 400;   // full-list refresh (< CHOP 1s prune timeout)
 
     var SIG_INTERVAL_MS = 500;   // how often to check for changes
     var DEBOUNCE_MS = 500;       // wait for edits to settle before re-baking
@@ -303,6 +306,31 @@
         });
     }
 
+    // Full-project broadcast: re-send EVERY layer of EVERY comp as /ae/layer so
+    // the C++ "AE Layer" CHOP keeps all of them in its menu list (it ages out
+    // layers not seen within ~1s). This replaces the old AEGP idle-hook role,
+    // purely from the extension. Slow rate (a few Hz) - the active comp's live
+    // transforms still stream fast via sendLive.
+    function sendCollect() {
+        if (!sock || !connected || baking || collectBusy) return;
+        collectBusy = true;
+        var hp = getHostPort();
+        evalScript("AEOP_collect()", function (res) {
+            collectBusy = false;
+            if (!connected || !sock) return;
+            var data;
+            try { data = JSON.parse(res); } catch (e) { return; }
+            if (!data || !data.length) return;
+            for (var n = 0; n < data.length; n++) {
+                var e = data[n];
+                var v = [e.tx, e.ty, e.tz, e.sx, e.sy, e.sz, e.rx, e.ry, e.rz,
+                         e.ox, e.oy, e.oz, e.opacity, e.ax, e.ay, e.az, e.time];
+                var buf = buildLiveMessage(e.project, e.comp, e.layer, e.type, e.index, v);
+                sock.send(buf, 0, buf.length, hp.port, hp.host);
+            }
+        });
+    }
+
     function connect() {
         if (!dgram) { setStatus("Node.js / dgram unavailable. Check manifest flags."); return; }
         sock = dgram.createSocket({ type: "udp4", reuseAddr: true });
@@ -332,6 +360,7 @@
             // path also tags layer types correctly (aeQuery.jsx classifies solids
             // as "solid"), so the per-type component menus see every layer.
             liveTimer = setInterval(sendLive, LIVE_INTERVAL_MS);
+            collectTimer = setInterval(sendCollect, COLLECT_INTERVAL_MS);  // keep all comps' layers in the menus
 
             // TD -> AE command channel: listen for the node's Spout apply/remove.
             try {
@@ -351,6 +380,7 @@
         connected = false;
         if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
         if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+        if (collectTimer) { clearInterval(collectTimer); collectTimer = null; }
         if (sock) { try { sock.close(); } catch (e) {} sock = null; }
         if (cmdSock) { try { cmdSock.close(); } catch (e) {} cmdSock = null; }
         stopReader();
