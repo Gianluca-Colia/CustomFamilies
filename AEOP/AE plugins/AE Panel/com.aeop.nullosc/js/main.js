@@ -194,6 +194,7 @@
     var liveBusy = false;        // guard so AEOP_live() calls don't pile up
     var collectTimer = null;     // slow full-project broadcast (keeps menus full)
     var collectBusy = false;     // guard so AEOP_collect() calls don't pile up
+    var compsBusy = false;       // guard so AEOP_comps() calls don't pile up
     var connected = false;
 
     var CMD_PORT = 7001;         // TD -> AE command channel (loopback)
@@ -331,6 +332,26 @@
         });
     }
 
+    // Broadcast EVERY comp (incl. empty ones) as /ae/comp so the C++ ops list
+    // empty comps in the Comp menu. Same slow cadence as sendCollect.
+    function sendComps() {
+        if (!sock || !connected || compsBusy) return;
+        compsBusy = true;
+        var hp = getHostPort();
+        evalScript("AEOP_comps()", function (res) {
+            compsBusy = false;
+            if (!connected || !sock) return;
+            var data;
+            try { data = JSON.parse(res); } catch (e) { return; }
+            if (!data || !data.length) return;
+            for (var n = 0; n < data.length; n++) {
+                var buf = oscMessage("/ae/comp",
+                    [{ t: "s", v: data[n].project }, { t: "s", v: data[n].comp }]);
+                sock.send(buf, 0, buf.length, hp.port, hp.host);
+            }
+        });
+    }
+
     function connect() {
         if (!dgram) { setStatus("Node.js / dgram unavailable. Check manifest flags."); return; }
         sock = dgram.createSocket({ type: "udp4", reuseAddr: true });
@@ -360,7 +381,7 @@
             // path also tags layer types correctly (aeQuery.jsx classifies solids
             // as "solid"), so the per-type component menus see every layer.
             liveTimer = setInterval(sendLive, LIVE_INTERVAL_MS);
-            collectTimer = setInterval(sendCollect, COLLECT_INTERVAL_MS);  // keep all comps' layers in the menus
+            collectTimer = setInterval(function () { sendCollect(); sendComps(); }, COLLECT_INTERVAL_MS);  // keep all comps' layers AND empty comps in the menus
 
             // TD -> AE command channel: listen for the node's Spout apply/remove.
             try {

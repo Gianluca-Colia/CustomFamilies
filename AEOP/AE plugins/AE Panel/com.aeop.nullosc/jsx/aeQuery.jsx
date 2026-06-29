@@ -149,6 +149,25 @@ function AEOP_collect() {
 }
 
 
+// AEOP_comps() - list EVERY composition in the project (incl. empty ones), so
+// empty comps still appear in the node's Comp menu (the C++ ops register them
+// from /ae/comp). Returns a JSON array of {project, comp}.
+function AEOP_comps() {
+    var proj = app.project;
+    var projName = AEOP__projName(proj);
+    var out = [];
+    if (proj) {
+        for (var ci = 1; ci <= proj.numItems; ci++) {
+            var item = proj.item(ci);
+            if (item instanceof CompItem)
+                out.push('{"project":"' + AEOP__esc(projName) +
+                         '","comp":"' + AEOP__esc(item.name) + '"}');
+        }
+    }
+    return "[" + out.join(",") + "]";
+}
+
+
 // AEOP_bake() - samples EVERY frame of the active comp for each Null layer and
 // returns the whole animation as JSON. The panel turns this into /ae/null_bake
 // OSC messages so TouchDesigner can store it and play it back at full rate.
