@@ -467,6 +467,10 @@ class Install:
 			# poller and returns immediately; the actual enable happens
 			# whenever Custom.par.Install == 1.
 			('Enable Server (after Local)', lambda c: self._enable_server_after_local_ready(c)),
+			# Install the After Effects side LAST, just before the install is marked
+			# complete: the AELayerSpout.aex effect + CEP panel + PlayerDebugMode, so
+			# AE can talk to the AEOP operators. Fire-and-forget, user context, no UAC.
+			('Install After Effects plugin', lambda c: self._install_after_effects()),
 		]
 
 	def _run_ui_install(self, custom_families_comp):
@@ -1162,6 +1166,32 @@ class Install:
 				return pane
 
 		return None
+
+	def _install_after_effects(self):
+		"""Install the bundled After Effects side: the AELayerSpout.aex effect, the
+		CEP panel, and the PlayerDebugMode registry flag, by delegating to the
+		package's install_ae.ps1. That script runs entirely in the user context
+		(per-user MediaCore plug-in path + HKCU), so there is NO UAC prompt.
+
+		Fire-and-forget: launched with Popen and not awaited, so a slow AE install
+		never freezes TD. A missing script or launch error is logged and ignored -
+		the TD-side install still completes. AE must be restarted to load them.
+		The C++ operators (.dll) are read in place from AEOP/Dll and need no install.
+		"""
+		import subprocess
+		script = os.path.join(SCRIPTS_DISK_ROOT, 'AEOP', 'AE plugins', 'install_ae.ps1')
+		if not os.path.isfile(script):
+			debug('[Custom_families] AE installer not found, skipping: {}'.format(script))
+			return
+		try:
+			subprocess.Popen(
+				['powershell.exe', '-NonInteractive', '-NoProfile',
+				 '-ExecutionPolicy', 'Bypass', '-File', script],
+				creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+			)
+			debug('[Custom_families] launched AE installer: {}'.format(script))
+		except Exception as exc:
+			debug('[Custom_families] AE install launch failed: {}'.format(exc))
 
 	def _show_message(self, text):
 		run("ui.messageBox('Custom families', {!r})".format(text), delayFrames=1)
