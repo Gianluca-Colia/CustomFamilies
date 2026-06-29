@@ -23,10 +23,22 @@
 # =====================================================================
 
 OSC_DAT = 'oscout1'          # name of the OSC Out DAT inside the node
+MENU_DAT = 'aeMenu_exec'     # CHOP Execute DAT that owns the menu rebuild
 TARGET_KEY = 'aeop_spout_target'   # stored [compName, layerIndex] currently applied
+TYPE_PAR = 'Type'
 COMP_PAR = 'Comp'
 LAYER_PAR = 'Layer'
 DETACH_PAR = 'Detach'
+
+
+def _rebuild_menus():
+	"""Ask aeMenu_exec to refilter the Comp/Layer menus (Type/Comp changed)."""
+	m = parent().op(MENU_DAT)
+	if m is not None:
+		try:
+			m.module.Rebuild()
+		except Exception as exc:
+			debug('[AEOP node] menu rebuild failed: {}'.format(exc))
 
 
 def _osc():
@@ -82,6 +94,10 @@ def _detach():
 # ----- Parameter Execute DAT callbacks (full standard set) -----
 
 def onValueChange(par, prev):
+	# Type/Comp changed -> refilter the dependent menus first.
+	if par.name in (TYPE_PAR, COMP_PAR):
+		_rebuild_menus()
+	# Comp/Layer changed -> move the Spout effect to the new target.
 	if par.name in (COMP_PAR, LAYER_PAR):
 		_apply()
 	return
