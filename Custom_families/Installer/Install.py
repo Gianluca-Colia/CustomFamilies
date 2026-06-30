@@ -321,6 +321,17 @@ class Install:
 			and parts[0] == 'Custom_families'
 			and parts[1] in ('Local', 'Server')
 		):
+			family_name = parts[2]
+			# The canonical-template redirect only makes sense for the
+			# 'Custom' family, whose framework AND operator scripts really
+			# live under Custom_families/Embeded/Custom/. Other families in
+			# Local/Server (e.g. the AEOP and HOP Server families) ship their
+			# own scripts: their operators do NOT exist under Embeded/Custom/,
+			# so redirecting there binds par.file to a non-existent path and
+			# clobbers the author's binding/embedded text on every cook.
+			# Leave those DATs completely untouched.
+			if family_name != 'Custom':
+				return False
 			family_relative = '/'.join(parts[3:])
 			rel = 'Custom_families/Embeded/Custom/' + family_relative
 
